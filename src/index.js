@@ -336,9 +336,7 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
     const { data: commissions, error: commissionError } =
       await supabase
         .from('referral_commission_events')
-        .select(
-          'referred_telegram_id, amount'
-        )
+        .select('referred_telegram_id, amount')
         .eq('referrer_telegram_id', telegramId)
         .limit(10000);
 
@@ -509,9 +507,53 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
       });
     }
 
+    // Notify admin immediately after the withdrawal is created.
+    const user = req.telegramUser;
+    const amountUsdt = (amount / 1000000).toFixed(2);
+
+    const adminMessage =
+      `🔔 NEW WITHDRAWAL REQUEST\n\n` +
+      `👤 User: ${user.first_name || 'User'}\n` +
+      `🆔 Telegram ID: ${user.id}\n` +
+      `💰 Amount: $${amountUsdt} USDT\n` +
+      `🌐 Network: BNB Smart Chain (BEP20)\n` +
+      `💳 Wallet Address:\n${details}\n\n` +
+      `📌 Status: PENDING\n` +
+      `🧾 Request ID:\n${data.id}`;
+
+    let adminNotified = false;
+
+    try {
+      await bot.telegram.sendMessage(
+        cfg.adminId,
+        adminMessage,
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              '✅ Approve',
+              `wd_approve_${data.id}`
+            ),
+            Markup.button.callback(
+              '❌ Reject + Refund',
+              `wd_reject_${data.id}`
+            )
+          ]
+        ])
+      );
+
+      adminNotified = true;
+
+    } catch (notifyError) {
+      console.error(
+        'Admin withdrawal notification failed:',
+        notifyError
+      );
+    }
+
     res.json({
       ok: true,
-      withdrawal_id: data.id
+      withdrawal_id: data.id,
+      admin_notified: adminNotified
     });
 
   } catch (error) {
@@ -631,6 +673,7 @@ bot.command('menu', (ctx) => {
   );
 });
 
+// Admin command to list pending withdrawals if needed.
 bot.command('withdrawals', async (ctx) => {
   if (ctx.from.id !== cfg.adminId) {
     return ctx.reply('Not authorized.');
@@ -639,7 +682,7 @@ bot.command('withdrawals', async (ctx) => {
   const { data, error } = await supabase
     .from('withdrawals')
     .select(
-      'id, telegram_id, amount, payment_method, status'
+      'id, telegram_id, amount, payment_method, payment_details, status'
     )
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
@@ -656,15 +699,21 @@ bot.command('withdrawals', async (ctx) => {
 
   for (const item of data) {
     await ctx.reply(
-      `Withdrawal: ${item.id}\nUser: ${item.telegram_id}\nAmount: $${(Number(item.amount) / 1000000).toFixed(6)} USDT\nMethod: ${item.payment_method}\nWallet: ${item.payment_details}`,
+      `🔔 WITHDRAWAL REQUEST\n\n` +
+      `🧾 ID: ${item.id}\n` +
+      `👤 User ID: ${item.telegram_id}\n` +
+      `💰 Amount: $${(Number(item.amount) / 1000000).toFixed(2)} USDT\n` +
+      `🌐 Network: ${item.payment_method}\n` +
+      `💳 Wallet:\n${item.payment_details}\n` +
+      `📌 Status: ${item.status.toUpperCase()}`,
       Markup.inlineKeyboard([
         [
           Markup.button.callback(
-            'Approve',
+            '✅ Approve',
             `wd_approve_${item.id}`
           ),
           Markup.button.callback(
-            'Reject + Refund',
+            '❌ Reject + Refund',
             `wd_reject_${item.id}`
           )
         ]
