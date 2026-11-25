@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#111126">
   <title>Telegram Ads Reward</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -75,24 +76,24 @@
     <section class="card">
       <div class="muted">Your Available Balance</div>
       <div class="balance" id="balance">0</div>
-      <div class="muted">Total earned: <span id="earned">0</span> coins</div>
+      <div class="muted">Total earned: <span id="earned">$0.000000 USDT</span></div>
     </section>
 
     <div class="row">
       <section class="card">
-        <div class="muted">Daily Ads</div>
-        <h2>0 / 10</h2>
+        <div class="muted">Ads in the last 24 hours</div>
+        <h2><span id="adsWatched">0</span> / <span id="adsLimit">500</span></h2>
       </section>
       <section class="card">
-        <div class="muted">Minimum Withdraw</div>
-        <h2>10,000</h2>
+        <div class="muted">Minimum Withdrawal</div>
+        <h2 id="minimumWithdrawDisplay">$5.00</h2>
       </section>
     </div>
 
     <section class="card">
       <h3>📺 Watch Advertisements</h3>
-      <p class="muted">Advertisement rewards are currently being configured.</p>
-      <button disabled>Ads Coming Soon</button>
+      <p class="muted" id="adsInfo">Earn $0.005 USDT for each completed ad. Rewards are credited only after AdsGram confirms the view to the server.</p>
+      <button id="watchAdsBtn">Watch Ad</button>
     </section>
 
     <section class="card">
@@ -102,15 +103,14 @@
     </section>
 
     <section class="card">
-      <h3>💸 Withdraw Coins</h3>
-      <input id="amount" type="number" min="10000" placeholder="Amount (minimum 10000)">
+      <h3>💸 Withdraw USDT</h3>
+      <input id="amount" type="text" inputmode="decimal" placeholder="Amount in USDT (minimum $5.00)">
       <select id="method">
-        <option value="">Select payment method</option>
-        <option value="TON">TON Wallet</option>
-        <option value="USDT">USDT</option>
-        <option value="Other">Other</option>
+        <option value="">Select withdrawal network</option>
+        <option value="USDT_BEP20">USDT — BNB Smart Chain (BEP20)</option>
+        <option value="GRAM_TON">GRAM — TON Network</option>
       </select>
-      <input id="details" type="text" placeholder="Wallet address or payment details">
+      <input id="details" type="text" placeholder="BEP20 or TON wallet address">
       <button id="withdrawBtn">Submit Withdrawal</button>
     </section>
 
@@ -140,23 +140,66 @@ const api = (path, body) => fetch(path, {
   },
   body: body ? JSON.stringify(body) : undefined
 }).then(async r => {
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.error || 'Request failed');
+  const raw = await r.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch (_) {}
+  if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
   return data;
 });
 
 const statusEl = document.getElementById('status');
+let appConfig = { daily_limit: 500, minimum_withdrawal: 5000000, ad_reward: 5000, adsgram_block_id: '61753', bot_username: '' };
+let adController = null;
+let adBusy = false;
 
 function status(message) {
   statusEl.textContent = message;
 }
 
+function formatUsdt(units, decimals = 6) {
+  return '$' + (Number(units || 0) / 1000000).toFixed(decimals) + ' USDT';
+}
+
+function parseUsdtUnits(value) {
+  const raw = String(value || '').trim();
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(raw)) return null;
+  const [whole, fraction = ''] = raw.split('.');
+  const units = BigInt(whole) * 1000000n + BigInt((fraction + '000000').slice(0, 6));
+  return units <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(units) : null;
+}
+
+async function loadConfig() {
+  const result = await api('/api/config');
+  appConfig = { ...appConfig, ...result };
+  document.getElementById('adsLimit').textContent = String(appConfig.daily_limit);
+  document.getElementById('minimumWithdrawDisplay').textContent = formatUsdt(appConfig.minimum_withdrawal, 2);
+  document.getElementById('amount').placeholder = `Amount in USDT (minimum ${formatUsdt(appConfig.minimum_withdrawal, 2)})`;
+  if (!window.Adsgram || typeof window.Adsgram.init !== 'function') {
+    document.getElementById('watchAdsBtn').disabled = true;
+    document.getElementById('adsInfo').textContent = 'AdsGram SDK could not load. Please try again later.';
+    return;
+  }
+  adController = window.Adsgram.init({ blockId: String(appConfig.adsgram_block_id), debug: false });
+  await loadAdsStatus();
+}
+
+async function loadAdsStatus() {
+  const result = await api('/api/ads/status');
+  document.getElementById('adsWatched').textContent = String(result.watched);
+  document.getElementById('adsLimit').textContent = String(result.daily_limit);
+  const button = document.getElementById('watchAdsBtn');
+  button.disabled = result.remaining <= 0 || !adController;
+  document.getElementById('adsInfo').textContent = result.remaining > 0
+    ? `${result.remaining} ads remaining in your rolling 24-hour limit. Reward: ${formatUsdt(appConfig.ad_reward)} per completed ad.`
+    : 'You have reached your 24-hour ad limit. Please return later.';
+}
+
 async function loadAccount() {
   const result = await api('/api/me');
   document.getElementById('balance').textContent =
-    Number(result.user.balance).toLocaleString();
+    formatUsdt(result.user.balance);
   document.getElementById('earned').textContent =
-    Number(result.user.total_earned).toLocaleString();
+    formatUsdt(result.user.total_earned);
 }
 
 async function start() {
@@ -173,6 +216,7 @@ async function start() {
 
   try {
     await api('/api/auth', {});
+    await loadConfig();
     await loadAccount();
     status('Account connected successfully.');
   } catch (error) {
@@ -180,12 +224,50 @@ async function start() {
   }
 }
 
+document.getElementById('watchAdsBtn').onclick = async () => {
+  if (adBusy || !adController) return;
+  adBusy = true;
+  const button = document.getElementById('watchAdsBtn');
+  button.disabled = true;
+  const watchedBefore = Number(document.getElementById('adsWatched').textContent);
+  status('Loading rewarded ad...');
+  try {
+    const result = await adController.show();
+    if (!result || result.done !== true) {
+      status('Ad was not completed. No reward was added.');
+      return;
+    }
+    status('Ad completed. Waiting for AdsGram server confirmation...');
+    // AdsGram Reward URL credits on the server; the browser never credits coins.
+    let confirmed = false;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      try {
+        const current = await api('/api/ads/status');
+        await loadAccount();
+        await loadAdsStatus();
+        if (current.watched > watchedBefore) {
+          confirmed = true;
+        }
+        if (confirmed) break;
+      } catch (_) { /* retry callback visibility */ }
+    }
+    status(confirmed ? 'Ad reward confirmed by server.' : 'Ad finished, but server confirmation has not arrived yet. No client-side reward was issued. Refresh in a moment.');
+  } catch (error) {
+    status('Ad not completed: ' + (error?.description || error?.message || 'Please try again later.'));
+  } finally {
+    adBusy = false;
+    try { await loadAdsStatus(); } catch (_) {}
+    button.disabled = !adController || Number(document.getElementById('adsWatched').textContent) >= Number(appConfig.daily_limit);
+  }
+};
+
 document.getElementById('joinBtn').onclick = async () => {
   try {
     status('Checking channel membership...');
     const result = await api('/api/tasks/join', {});
     await loadAccount();
-    status('Success! Reward: ' + result.reward + ' coins');
+    status('Success! Reward: ' + formatUsdt(result.reward));
   } catch (error) {
     status(error.message);
   }
@@ -193,10 +275,15 @@ document.getElementById('joinBtn').onclick = async () => {
 
 document.getElementById('withdrawBtn').onclick = async () => {
   try {
-    const amount = Number(document.getElementById('amount').value);
+    const amount = document.getElementById('amount').value.trim();
+    const amountUnits = parseUsdtUnits(amount);
     const method = document.getElementById('method').value;
     const details = document.getElementById('details').value.trim();
 
+    if (amountUnits === null || amountUnits < Number(appConfig.minimum_withdrawal)) {
+      throw new Error(`Minimum withdrawal is ${formatUsdt(appConfig.minimum_withdrawal, 2)}.`);
+    }
+    if (!method || !details) throw new Error('Select a payment method and enter payment details.');
     status('Submitting withdrawal...');
 
     await api('/api/withdraw', { amount, method, details });
@@ -222,7 +309,7 @@ document.getElementById('historyBtn').onclick = async () => {
       const div = document.createElement('div');
       div.className = 'history-item';
       div.textContent =
-        `${item.amount} coins — ${item.status} — ${new Date(item.created_at).toLocaleString()}`;
+        `${formatUsdt(item.amount)} — ${item.payment_method} — ${item.status} — ${new Date(item.created_at).toLocaleString()}`;
       history.appendChild(div);
     });
   } catch (error) {
@@ -231,15 +318,13 @@ document.getElementById('historyBtn').onclick = async () => {
 };
 
 document.getElementById('refBtn').onclick = () => {
-  const username = tg?.initDataUnsafe?.user?.username;
-  const botUsername = 'YOUR_BOT_USERNAME';
-
-  if (!username) {
-    status('Bot username configuration is required.');
+  const botUsername = appConfig.bot_username;
+  const userId = tg?.initDataUnsafe?.user?.id;
+  if (!botUsername || !userId) {
+    status('Referral link is not ready. Please reopen the app.');
     return;
   }
-
-  const link = `https://t.me/${botUsername}?start=ref_${tg.initDataUnsafe.user.id}`;
+  const link = `https://t.me/${botUsername}?start=ref_${userId}`;
   tg.openTelegramLink(
     `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join my reward bot!')}`
   );
