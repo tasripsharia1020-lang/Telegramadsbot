@@ -1,0 +1,251 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#111126">
+  <title>Telegram Ads Reward</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #111126;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+    .container { max-width: 520px; margin: auto; }
+    .header { padding: 12px 0 20px; }
+    .header h2 { margin: 0; }
+    .card {
+      background: #20203e;
+      border: 1px solid #35355c;
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .balance {
+      font-size: 34px;
+      font-weight: bold;
+      margin: 12px 0;
+      color: #a99bff;
+    }
+    .muted { color: #aaaac5; font-size: 13px; }
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 10px;
+      border: 0;
+      border-radius: 12px;
+      background: #7764ff;
+      color: white;
+      font-weight: bold;
+      font-size: 15px;
+    }
+    button:disabled { opacity: .45; }
+    input, select {
+      width: 100%;
+      padding: 13px;
+      margin-top: 10px;
+      border-radius: 10px;
+      border: 1px solid #44446a;
+      background: #17172e;
+      color: white;
+    }
+    .row { display: flex; gap: 10px; }
+    .row .card { flex: 1; }
+    .status { margin-top: 12px; font-size: 13px; color: #b9b9d6; }
+    .task-title { font-weight: bold; }
+    .history-item {
+      padding: 10px 0;
+      border-bottom: 1px solid #393956;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="header">
+      <h2>🚀 Ads Reward</h2>
+      <p class="muted" id="welcome">Welcome!</p>
+    </div>
+
+    <section class="card">
+      <div class="muted">Your Available Balance</div>
+      <div class="balance" id="balance">0</div>
+      <div class="muted">Total earned: <span id="earned">0</span> coins</div>
+    </section>
+
+    <div class="row">
+      <section class="card">
+        <div class="muted">Daily Ads</div>
+        <h2>0 / 10</h2>
+      </section>
+      <section class="card">
+        <div class="muted">Minimum Withdraw</div>
+        <h2>10,000</h2>
+      </section>
+    </div>
+
+    <section class="card">
+      <h3>📺 Watch Advertisements</h3>
+      <p class="muted">Advertisement rewards are currently being configured.</p>
+      <button disabled>Ads Coming Soon</button>
+    </section>
+
+    <section class="card">
+      <h3>👥 Join Our Channel</h3>
+      <p class="muted">Join the required channel and verify your membership.</p>
+      <button id="joinBtn">Verify Membership</button>
+    </section>
+
+    <section class="card">
+      <h3>💸 Withdraw Coins</h3>
+      <input id="amount" type="number" min="10000" placeholder="Amount (minimum 10000)">
+      <select id="method">
+        <option value="">Select payment method</option>
+        <option value="TON">TON Wallet</option>
+        <option value="USDT">USDT</option>
+        <option value="Other">Other</option>
+      </select>
+      <input id="details" type="text" placeholder="Wallet address or payment details">
+      <button id="withdrawBtn">Submit Withdrawal</button>
+    </section>
+
+    <section class="card">
+      <h3>📜 Withdrawal History</h3>
+      <button id="historyBtn">Refresh History</button>
+      <div id="history" class="muted">No history loaded.</div>
+    </section>
+
+    <section class="card">
+      <h3>🔗 Referral</h3>
+      <p class="muted">Invite friends using your Telegram referral link.</p>
+      <button id="refBtn">Share Bot</button>
+    </section>
+
+    <div class="status" id="status">Connecting...</div>
+  </main>
+
+<script>
+const tg = window.Telegram?.WebApp;
+const initData = tg?.initData || '';
+const api = (path, body) => fetch(path, {
+  method: body ? 'POST' : 'GET',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Telegram-Init-Data': initData
+  },
+  body: body ? JSON.stringify(body) : undefined
+}).then(async r => {
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || 'Request failed');
+  return data;
+});
+
+const statusEl = document.getElementById('status');
+
+function status(message) {
+  statusEl.textContent = message;
+}
+
+async function loadAccount() {
+  const result = await api('/api/me');
+  document.getElementById('balance').textContent =
+    Number(result.user.balance).toLocaleString();
+  document.getElementById('earned').textContent =
+    Number(result.user.total_earned).toLocaleString();
+}
+
+async function start() {
+  if (!tg || !initData) {
+    status('Please open this app from your Telegram bot.');
+    return;
+  }
+
+  tg.ready();
+  tg.expand();
+
+  document.getElementById('welcome').textContent =
+    'Hello, ' + (tg.initDataUnsafe?.user?.first_name || 'Friend');
+
+  try {
+    await api('/api/auth', {});
+    await loadAccount();
+    status('Account connected successfully.');
+  } catch (error) {
+    status(error.message);
+  }
+}
+
+document.getElementById('joinBtn').onclick = async () => {
+  try {
+    status('Checking channel membership...');
+    const result = await api('/api/tasks/join', {});
+    await loadAccount();
+    status('Success! Reward: ' + result.reward + ' coins');
+  } catch (error) {
+    status(error.message);
+  }
+};
+
+document.getElementById('withdrawBtn').onclick = async () => {
+  try {
+    const amount = Number(document.getElementById('amount').value);
+    const method = document.getElementById('method').value;
+    const details = document.getElementById('details').value.trim();
+
+    status('Submitting withdrawal...');
+
+    await api('/api/withdraw', { amount, method, details });
+    await loadAccount();
+    status('Withdrawal request submitted for admin review.');
+  } catch (error) {
+    status(error.message);
+  }
+};
+
+document.getElementById('historyBtn').onclick = async () => {
+  try {
+    const result = await api('/api/withdrawals');
+    const history = document.getElementById('history');
+    history.innerHTML = '';
+
+    if (!result.withdrawals.length) {
+      history.textContent = 'No withdrawals yet.';
+      return;
+    }
+
+    result.withdrawals.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'history-item';
+      div.textContent =
+        `${item.amount} coins — ${item.status} — ${new Date(item.created_at).toLocaleString()}`;
+      history.appendChild(div);
+    });
+  } catch (error) {
+    status(error.message);
+  }
+};
+
+document.getElementById('refBtn').onclick = () => {
+  const username = tg?.initDataUnsafe?.user?.username;
+  const botUsername = 'YOUR_BOT_USERNAME';
+
+  if (!username) {
+    status('Bot username configuration is required.');
+    return;
+  }
+
+  const link = `https://t.me/${botUsername}?start=ref_${tg.initDataUnsafe.user.id}`;
+  tg.openTelegramLink(
+    `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join my reward bot!')}`
+  );
+};
+
+start();
+</script>
+</body>
+</html>
