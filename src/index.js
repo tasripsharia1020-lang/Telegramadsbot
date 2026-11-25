@@ -1,4 +1,3 @@
-
 import 'dotenv/config';
 import express from 'express';
 import crypto from 'node:crypto';
@@ -25,9 +24,13 @@ const cfg = {
   appUrl: process.env.APP_URL.replace(/\/$/, ''),
   targetChatId: process.env.TARGET_CHAT_ID || '',
   targetChatUrl: process.env.TARGET_CHAT_URL || '',
-  dailyLimit: Number(process.env.DAILY_AD_LIMIT || 10),
-  minimumWithdrawal: Number(process.env.MIN_WITHDRAWAL || 10000),
-  joinReward: Number(process.env.JOIN_REWARD || 200),
+  // Integer micro-USDT: 1 USDT = 1,000,000 units.
+  dailyLimit: 500,
+  adReward: 5000, // $0.005 USDT
+  adsgramBlockId: '61753',
+  adsgramRewardSecret: process.env.ADSGRAM_REWARD_SECRET || '',
+  minimumWithdrawal: 5000000, // $5 USDT
+  joinReward: 50000, // $0.05 USDT
   adSecret: process.env.AD_PROVIDER_WEBHOOK_SECRET || '',
   port: Number(process.env.PORT || 3000)
 };
@@ -43,6 +46,7 @@ const supabase = createClient(
 );
 
 const bot = new Telegraf(cfg.botToken);
+let botUsername = '';
 const app = express();
 
 app.use(express.json({
@@ -52,6 +56,20 @@ app.use(express.json({
 }));
 
 app.use(express.static('public'));
+
+function parseUsdtUnits(value) {
+  const raw = String(value ?? '').trim();
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(raw)) return null;
+  const [whole, fraction = ''] = raw.split('.');
+  const units = BigInt(whole) * 1000000n + BigInt((fraction + '000000').slice(0, 6));
+  if (units > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  return Number(units);
+}
+
+function formatUsdt(units) {
+  const value = Number(units || 0) / 1000000;
+  return `$${value.toFixed(6)} USDT`;
+}
 
 function verifyTelegramInitData(initData) {
   if (!initData) return null;
@@ -63,7 +81,7 @@ function verifyTelegramInitData(initData) {
   params.delete('hash');
 
   const authDate = Number(params.get('auth_date'));
-  if (!authDate || Math.floor(Date.now() / 1000) - authDate > 3600) {
+  if (!authDate || authDate > Math.floor(Date.now() / 1000) + 60 || Math.floor(Date.now() / 1000) - authDate > 3600) {
     return null;
   }
 
@@ -111,9 +129,13 @@ async function saveUser(user, referralId = null) {
 
   const { error } = await supabase
     .from('users')
-    .upsert(row, { onConflict: 'telegram_id' });
-
+    .upsert(row, { onConflict: 'telegram_id', ignoreDuplicates: true });
   if (error) throw error;
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ username: user.username || null, first_name: user.first_name || null })
+    .eq('telegram_id', user.id);
+  if (updateError) throw updateError;
 }
 
 function requireMiniApp(req, res, next) {
@@ -131,6 +153,50 @@ function requireMiniApp(req, res, next) {
 
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'Telegramadsbot' });
+});
+
+app.get('/api/config', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ daily_limit: cfg.dailyLimit, minimum_withdrawal: cfg.minimumWithdrawal,
+    ad_reward: cfg.adReward, adsgram_block_id: cfg.adsgramBlockId, bot_username: botUsername });
+});
+
+// AdsGram calls this HTTPS Reward URL after a completed rewarded view.
+// Configure it in the AdsGram block as: https://YOUR-DOMAIN/api/adsgram/reward?userid=[userId]&secret=YOUR_SECRET
+app.get('/api/adsgram/reward', async (req, res) => {
+  try {
+    const supplied = String(req.query.secret || '');
+    const expected = cfg.adsgramRewardSecret;
+    if (!expected || supplied.length !== expected.length ||
+        !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
+      return res.status(401).send('Unauthorized');
+    }
+    const telegramId = String(req.query.userid || req.query.userId || '');
+    if (!/^\d{1,20}$/.test(telegramId)) return res.status(400).send('Invalid user');
+    const { data, error } = await supabase.rpc('credit_adsgram_reward', {
+      p_telegram_id: telegramId, p_reward: cfg.adReward, p_daily_limit: cfg.dailyLimit
+    });
+    if (error) throw error;
+    if (!data || data.ok !== true) return res.status(409).send(data?.reason || 'Reward not credited');
+    return res.status(200).send('OK');
+  } catch (error) {
+    console.error('AdsGram reward callback error:', error);
+    return res.status(500).send('Reward processing failed');
+  }
+});
+
+app.get('/api/ads/status', requireMiniApp, async (req, res) => {
+  try {
+    const { data, error } = await supabase.rpc('get_adsgram_status', {
+      p_telegram_id: String(req.telegramUser.id), p_daily_limit: cfg.dailyLimit
+    });
+    if (error) throw error;
+    const watched = Number(data?.watched || 0);
+    res.json({ watched, daily_limit: cfg.dailyLimit, remaining: Math.max(0, cfg.dailyLimit - watched) });
+  } catch (error) {
+    console.error('Ads status error:', error);
+    res.status(503).json({ error: 'Ads reward SQL setup is required' });
+  }
 });
 
 app.post('/api/auth', requireMiniApp, async (req, res) => {
@@ -205,13 +271,20 @@ app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
 
 app.post('/api/withdraw', requireMiniApp, async (req, res) => {
   try {
-    const amount = Number(req.body.amount);
+    const amount = parseUsdtUnits(req.body.amount);
     const method = String(req.body.method || '').trim();
     const details = String(req.body.details || '').trim();
 
-    if (!Number.isSafeInteger(amount) || amount <= 0 ||
-        !method || !details || details.length > 300) {
+    if (amount === null || amount <= 0 ||
+        !['USDT_BEP20', 'GRAM_TON'].includes(method) ||
+        !details || details.length > 300) {
       return res.status(400).json({ error: 'Invalid withdrawal details' });
+    }
+    if (method === 'USDT_BEP20' && !/^0x[a-fA-F0-9]{40}$/.test(details)) {
+      return res.status(400).json({ error: 'Enter a valid BNB Smart Chain (BEP20) address' });
+    }
+    if (method === 'GRAM_TON' && !/^(?:EQ|UQ)[A-Za-z0-9_-]{46,50}$/.test(details)) {
+      return res.status(400).json({ error: 'Enter a valid TON wallet address' });
     }
 
     const { data, error } = await supabase.rpc('create_withdrawal', {
@@ -322,7 +395,7 @@ bot.command('withdrawals', async (ctx) => {
 
   const { data, error } = await supabase
     .from('withdrawals')
-    .select('id, telegram_id, amount, payment_method, status')
+    .select('id, telegram_id, amount, payment_method, payment_details, status')
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(10);
@@ -336,7 +409,7 @@ bot.command('withdrawals', async (ctx) => {
 
   for (const item of data) {
     await ctx.reply(
-      `Withdrawal: ${item.id}\nUser: ${item.telegram_id}\nAmount: ${item.amount}\nMethod: ${item.payment_method}`,
+      `Withdrawal: ${item.id}\nUser: ${item.telegram_id}\nAmount: ${formatUsdt(item.amount)}\nMethod: ${item.payment_method}\nWallet: ${item.payment_details || '(not returned by query)'}`,
       Markup.inlineKeyboard([
         [
           Markup.button.callback('Approve', `wd_approve_${item.id}`),
@@ -388,12 +461,17 @@ const server = app.listen(cfg.port, () => {
   console.log(`Server listening on port ${cfg.port}`);
 });
 
-bot.launch().then(() => {
-  console.log('Telegram bot started');
-}).catch((error) => {
-  console.error('Telegram bot launch failed:', error);
-  process.exit(1);
-});
+(async () => {
+  try {
+    const me = await bot.telegram.getMe();
+    botUsername = me.username || '';
+    await bot.launch();
+    console.log(`Telegram bot started${botUsername ? ` as @${botUsername}` : ''}`);
+  } catch (error) {
+    console.error('Telegram bot launch failed:', error);
+    process.exit(1);
+  }
+})();
 
 process.once('SIGINT', () => {
   bot.stop('SIGINT');
