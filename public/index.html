@@ -42,4 +42,3 @@ $('historyBtn').onclick=async()=>{try{const r=await api('/api/withdrawals');$('h
 $('refBtn').onclick=()=>{const id=tg?.initDataUnsafe?.user?.id;if(!cfg.bot_username||!id){status('Referral link not ready. Reopen AdsEarn from the bot.');return}const link=`https://t.me/${cfg.bot_username}?start=ref_${id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join AdsEarn and earn USDT!')}`)};
 start();setInterval(renderCountdown,1000);setInterval(()=>{if(tg&&initData)loadAdsStatus().catch(()=>{})},30000);
 </script></body></html>
-
