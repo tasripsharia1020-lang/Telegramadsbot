@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#050914">
 <title>ANV Verse</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://libtl.com/sdk.js" data-zone="12354877" data-sdk="show_12354877"></script>
 <style>
 :root{--bg:#050914;--panel:#09172b;--panel2:#0d2340;--cyan:#20d9ff;--blue:#168cff;--gold:#ffd64a;--muted:#9bb6d4;--line:#15558b;--green:#31e49a}
 *{box-sizing:border-box}
@@ -113,13 +114,11 @@ button{cursor:pointer}
 <div class="metric"><small>REFERRALS</small><b id="refCount">0</b></div>
 </div>
 </div>
-
 <div class="daily-spotlight">
 <div class="daily-gift">🎁</div>
 <div class="daily-info"><b>Daily Check-in</b><span id="homeDailyClaimLabel">+2 ANV REWARD</span></div>
 <button class="action gold" id="homeDailyButton" onclick="claimDaily()">CLAIM</button>
 </div>
-
 <div class="section-title">Your Overview</div>
 <div class="grid">
 <div class="card"><div class="ico">⛏️</div><small>Mining Reward / 24h</small><strong id="homeMiningReward">10 ANV</strong></div>
@@ -127,7 +126,6 @@ button{cursor:pointer}
 <div class="card"><div class="ico">👥</div><small>Referral Reward</small><strong id="homeReferralReward">5 ANV</strong></div>
 <div class="card"><div class="ico">⚡</div><small>Mining Status</small><strong id="homeMiningStatus">Ready</strong></div>
 </div>
-
 <div class="section-title">Quick Access</div>
 <div class="grid">
 <button class="action" onclick="showPage('tasks')">🎁 Tasks & Rewards</button>
@@ -158,13 +156,15 @@ button{cursor:pointer}
 <div class="row"><div class="taskicon">✈️</div><div class="taskbody"><h3>Join Telegram Community</h3><p>Join our official Telegram channel and verify membership</p></div><div class="taskright"><div class="reward">+USDT*</div><button class="action" id="joinButton" onclick="joinGroup()">START</button></div></div>
 </div>
 <div class="task" data-category="ads">
-<div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#45209b,#17194d);border-color:#9b7bff">▶️</div><div class="taskbody"><h3>Watch Rewarded Ad</h3><p>Watch a video ad and earn ANV points · Max 5 verified ads/day</p></div><div class="taskright"><div class="reward">+10 ANV</div><button class="action" id="watchAdButton" disabled>COMING SOON</button></div></div>
+<div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#45209b,#17194d);border-color:#9b7bff">▶️</div><div class="taskbody"><h3>Watch Rewarded Ad</h3><p id="adDescription">Watch a video ad and earn ANV points · Max 5 verified ads/day</p></div><div class="taskright"><div class="reward" id="adRewardLabel">+10 ANV</div><button class="action" id="watchAdButton" onclick="watchRewardedAd()" disabled>COMING SOON</button></div>
 </div>
+</div>
+<div class="notice" id="adNotice">Rewarded ads are currently unavailable. They will activate after provider approval and secure server verification.</div>
 <div class="group-title"><span>Special Tasks</span><span>Earn more</span></div>
 <div class="task" data-category="social">
 <div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#60400a,#34204b);border-color:#ffcf47">⭐</div><div class="taskbody"><h3>Invite Friends</h3><p>Invite friends and earn when they become eligible</p></div><div class="taskright"><div class="reward">+5 ANV</div><button class="action" onclick="showPage('referral')">INVITE</button></div></div>
 </div>
-<div class="notice">Rewards are credited only after server verification. Watch Ads will activate after an ad provider is approved and secure reward verification is connected. *The Telegram group reward, if configured, remains the existing one-time USDT task.</div>
+<div class="notice">Rewards are credited only after server verification. *The Telegram group reward remains the existing one-time USDT task.</div>
 </section>
 
 <section class="page" id="mining">
@@ -239,15 +239,22 @@ button{cursor:pointer}
 <div class="toast" id="toast"></div>
 
 <script>
-const API='https://telegramadsbot-0oan.onrender.com',tg=window.Telegram?.WebApp,initData=tg?.initData||'',headers={'Content-Type':'application/json','X-Telegram-Init-Data':initData};
+const API='https://telegramadsbot-0oan.onrender.com';
+const tg=window.Telegram?.WebApp;
+const initData=tg?.initData||'';
+const headers={'Content-Type':'application/json','X-Telegram-Init-Data':initData};
+
 let account=null,mining=null,settings={},legacyUser=null,miningTicker=null,joinOpened=false;
+let adsStatus={enabled:false,remaining:0,daily_limit:5};
+let adShowing=false;
+
 if(tg){tg.ready();tg.expand()}
 
 function toast(m){
  const e=document.getElementById('toast');
  e.textContent=m;e.style.display='block';
  clearTimeout(toast.timer);
- toast.timer=setTimeout(()=>e.style.display='none',3000);
+ toast.timer=setTimeout(()=>e.style.display='none',3500);
 }
 function fmt(v){return Number(v||0).toLocaleString('en-US')}
 function money(v){return '$'+(Number(v||0)/1000000).toFixed(6)}
@@ -267,7 +274,7 @@ function showPage(p){
  document.querySelectorAll('.nav button').forEach(e=>e.classList.toggle('active',e.dataset.page===p));
  if(p==='wallet')loadWithdrawals();
  if(p==='referral')loadReferrals();
- if(p==='tasks')loadDailyStatus();
+ if(p==='tasks'){loadDailyStatus();loadAdStatus()}
 }
 
 function filterTasks(cat,btn){
@@ -290,7 +297,7 @@ async function loadAll(){
   const [a,o]=await Promise.all([api('/api/anv/me'),api('/api/me')]);
   account=a.account;mining=a.mining;settings=a.settings||{};legacyUser=o.user;
   renderAccount();
-  await Promise.all([loadTransactions(),loadReferrals(),loadJoinStatus(),loadDailyStatus()]);
+  await Promise.all([loadTransactions(),loadReferrals(),loadJoinStatus(),loadDailyStatus(),loadAdStatus()]);
   startTicker();
  }catch(e){toast(e.message);console.error(e)}
 }
@@ -417,6 +424,107 @@ async function joinGroup(){
  }catch(e){b.disabled=false;toast(e.message)}
 }
 
+/* Monetag rewarded-ad integration.
+   ANV is never credited in the browser.
+   The backend postback is the only reward authority. */
+
+function makeYmid(){
+ if(window.crypto?.randomUUID){
+  return 'anv_'+crypto.randomUUID().replace(/-/g,'');
+ }
+ return 'anv_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,14);
+}
+
+function renderAdStatus(){
+ const b=document.getElementById('watchAdButton');
+ const note=document.getElementById('adNotice');
+ const description=document.getElementById('adDescription');
+ if(!b||!note)return;
+
+ const enabled=adsStatus.enabled===true;
+ const remaining=Math.max(0,Number(adsStatus.remaining||0));
+ const limit=Math.max(0,Number(adsStatus.daily_limit||5));
+
+ if(!enabled){
+  b.disabled=true;
+  b.textContent='COMING SOON';
+  note.textContent='Rewarded ads are currently unavailable. They will activate after provider approval and secure server verification.';
+  description.textContent='Watch a video ad and earn ANV points · Max '+limit+' verified ads/day';
+  return;
+ }
+ if(remaining<=0){
+  b.disabled=true;
+  b.textContent='DAILY LIMIT REACHED';
+  note.textContent='You have used all '+limit+' verified ad rewards for today. Come back tomorrow.';
+ }else{
+  b.disabled=adShowing;
+  b.textContent=adShowing?'AD OPENING...':'▶ WATCH AD';
+  note.textContent=remaining+' of '+limit+' verified ad rewards remaining today. Reward is credited after server verification.';
+ }
+ description.textContent='Watch a rewarded ad and earn 10 ANV · '+remaining+' rewards remaining today';
+}
+
+async function loadAdStatus(){
+ try{
+  const r=await api('/api/ads/status');
+  const limit=Number(r.daily_limit||5);
+  const watched=Number(r.watched_today||r.completed_today||0);
+  adsStatus={
+   enabled:r.enabled===true,
+   daily_limit:limit,
+   remaining:Number.isFinite(Number(r.remaining))?Number(r.remaining):Math.max(0,limit-watched)
+  };
+ }catch(e){
+  adsStatus={enabled:false,daily_limit:5,remaining:0};
+  console.warn('Ad status unavailable:',e);
+ }
+ renderAdStatus();
+}
+
+async function watchRewardedAd(){
+ if(adShowing)return;
+ if(!adsStatus.enabled){
+  toast('Rewarded ads are not enabled yet.');
+  return;
+ }
+ if(Number(adsStatus.remaining)<=0){
+  toast('Daily ad reward limit reached.');
+  return;
+ }
+ if(typeof window.show_12354877!=='function'){
+  toast('Monetag ad SDK is not ready. Reload the Mini App and try again.');
+  return;
+ }
+
+ const button=document.getElementById('watchAdButton');
+ const ymid=makeYmid();
+ adShowing=true;
+ renderAdStatus();
+
+ try{
+  const result=await window.show_12354877({
+   ymid:ymid,
+   requestVar:'watch_ad'
+  });
+
+  if(result?.reward_event_type==='valued'){
+   toast('Ad completed. Waiting for secure ANV reward verification.');
+  }else{
+   toast('Ad closed or not eligible for reward. No ANV was added.');
+  }
+
+  // Refresh status after the ad. The server postback may arrive later.
+  setTimeout(()=>loadAdStatus(),2500);
+ }catch(e){
+  console.error('Monetag error:',e);
+  toast('The ad could not be completed. Please try again later.');
+ }finally{
+  adShowing=false;
+  renderAdStatus();
+  await loadAdStatus();
+ }
+}
+
 async function loadTransactions(){
  try{
   const r=await api('/api/anv/history'),e=document.getElementById('recentTransactions');
@@ -474,8 +582,13 @@ async function loadWithdrawals(){
 }
 
 (async()=>{
- try{await authenticate();await loadAll()}
- catch(e){console.error(e);if(initData)toast(e.message)}
+ try{
+  await authenticate();
+  await loadAll();
+ }catch(e){
+  console.error(e);
+  if(initData)toast(e.message);
+ }
 })();
 </script>
 </body>
