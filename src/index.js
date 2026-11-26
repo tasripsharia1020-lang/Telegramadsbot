@@ -301,9 +301,6 @@ const adProviders = [
 
 // ---------------- MONETAG SESSION ----------------
 
-// The Telegram user identity comes from verified Mini App initData.
-// The browser never chooses the Telegram ID for a rewarded session.
-
 app.post('/api/monetag/session', requireMiniApp, async (req, res) => {
   try {
     if (!adsEnabled) {
@@ -328,6 +325,7 @@ app.post('/api/monetag/session', requireMiniApp, async (req, res) => {
     if (error) throw error;
 
     res.set('Cache-Control', 'no-store');
+
     return res.json({
       ok: true,
       ymid,
@@ -335,6 +333,7 @@ app.post('/api/monetag/session', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Monetag session creation error:', error);
+
     return res.status(500).json({
       error: 'Could not prepare a secure ad session.'
     });
@@ -383,8 +382,9 @@ app.get('/api/monetag/postback', async (req, res) => {
       return res.status(200).send('INVALID_PRICE');
     }
 
-    // Resolve Telegram ID from our own session table.
-    // Never trust the telegram_id supplied by the ad provider callback.
+    // Resolve the Telegram ID from our own session table.
+    // Never trust a Telegram ID supplied by the ad provider.
+
     const { data: session, error: sessionError } = await supabase
       .from('monetag_ad_sessions')
       .select('telegram_id')
@@ -400,7 +400,7 @@ app.get('/api/monetag/postback', async (req, res) => {
     }
 
     if (!session?.telegram_id) {
-      console.warn('Monetag postback ignored: invalid or expired session');
+      console.warn('Monetag: invalid or expired session');
       return res.status(200).send('INVALID_SESSION');
     }
 
@@ -408,7 +408,7 @@ app.get('/api/monetag/postback', async (req, res) => {
       'anv_credit_monetag_reward',
       {
         p_ymid: String(ymid),
-        p_telegram_id: String(session.telegram_id),
+        p_telegram_id: Number(session.telegram_id),
         p_zone_id: String(zone_id),
         p_sub_zone_id: String(sub_zone_id || ''),
         p_event_type: String(event_type),
@@ -418,11 +418,26 @@ app.get('/api/monetag/postback', async (req, res) => {
     );
 
     if (error) {
-      console.error('Monetag postback RPC error:', error);
+      console.error('Monetag reward RPC error:', error);
       return res.sendStatus(500);
     }
 
-    console.log('Monetag verified event:', data);
+    if (!data || data.ok !== true) {
+      console.warn('Monetag reward not credited:', data);
+
+      return res.status(200).send(
+        data?.reason === 'duplicate' ? 'DUPLICATE' :
+        data?.reason === 'daily_limit' ? 'DAILY_LIMIT' :
+        'REWARD_NOT_CREDITED'
+      );
+    }
+
+    console.log('MONETAG REWARD CREDITED:', {
+      telegram_id: session.telegram_id,
+      reward: data.reward,
+      event_id: data.event_id
+    });
+
     return res.status(200).send('OK');
   } catch (error) {
     console.error('Monetag postback error:', error);
@@ -478,6 +493,7 @@ app.get('/api/config', async (req, res) => {
     });
   } catch (error) {
     console.error('Config error:', error);
+
     res.status(500).json({
       error: 'Could not load configuration'
     });
@@ -503,12 +519,14 @@ app.get('/api/ads/status', requireMiniApp, async (req, res) => {
     }
 
     const now = new Date();
+
     const dayStart = new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
       now.getUTCDate()
     ));
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const dayEnd = new Date(dayStart.getTime() + 86400000);
 
     const { count, error } = await supabase
       .from('monetag_reward_events')
@@ -535,6 +553,7 @@ app.get('/api/ads/status', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Ad status error:', error);
+
     return res.status(500).json({
       error: 'Could not load ad status'
     });
@@ -562,6 +581,7 @@ app.post('/api/auth', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Auth error:', error);
+
     res.status(500).json({
       error: 'Could not save user'
     });
@@ -592,6 +612,7 @@ app.get('/api/me', requireMiniApp, async (req, res) => {
     res.json({ user: data });
   } catch (error) {
     console.error('Account error:', error);
+
     res.status(500).json({
       error: 'Could not load account'
     });
@@ -661,6 +682,7 @@ app.get('/api/anv/me', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV account error:', error);
+
     res.status(500).json({
       error: 'Could not load ANV account'
     });
@@ -699,6 +721,7 @@ app.post('/api/anv/mining/start', requireMiniApp, async (req, res) => {
     res.json({ ok: true, mining: data });
   } catch (error) {
     console.error('ANV mining start error:', error);
+
     res.status(500).json({
       error: 'Could not start mining'
     });
@@ -739,6 +762,7 @@ app.post('/api/anv/mining/collect', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV mining collect error:', error);
+
     res.status(500).json({
       error: 'Could not collect mining reward'
     });
@@ -771,6 +795,7 @@ app.get('/api/anv/daily/status', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV daily status error:', error);
+
     res.status(500).json({
       error: 'Could not load daily check-in status'
     });
@@ -811,6 +836,7 @@ app.post('/api/anv/daily/claim', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV daily claim error:', error);
+
     res.status(500).json({
       error: 'Could not claim daily reward'
     });
@@ -836,6 +862,7 @@ app.get('/api/anv/history', requireMiniApp, async (req, res) => {
     res.json({ transactions: data || [] });
   } catch (error) {
     console.error('ANV history error:', error);
+
     res.status(500).json({
       error: 'Could not load ANV history'
     });
@@ -899,6 +926,7 @@ app.get('/api/anv/referrals', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV referral error:', error);
+
     res.status(500).json({
       error: 'Could not load ANV referral statistics'
     });
@@ -919,12 +947,14 @@ app.get('/api/tasks/status', requireMiniApp, async (req, res) => {
     if (error) throw error;
 
     res.set('Cache-Control', 'no-store');
+
     res.json({
       claimed: Boolean(data),
       task_id: 'main_channel'
     });
   } catch (error) {
     console.error('Task status error:', error);
+
     res.status(500).json({
       error: 'Could not load task status'
     });
@@ -960,6 +990,7 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
 
     for (const item of commissions || []) {
       const id = String(item.referred_telegram_id);
+
       commissionMap.set(
         id,
         (commissionMap.get(id) || 0) + Number(item.amount || 0)
@@ -992,6 +1023,7 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Referral error:', error);
+
     res.status(500).json({
       error: 'Could not load referral statistics'
     });
@@ -1041,6 +1073,7 @@ app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Join task error:', error);
+
     res.status(500).json({
       error: 'Could not verify membership. Please try again.'
     });
@@ -1145,6 +1178,7 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Withdrawal error:', error);
+
     res.status(500).json({
       error: 'Could not create withdrawal'
     });
@@ -1170,15 +1204,14 @@ app.get('/api/withdrawals', requireMiniApp, async (req, res) => {
     res.json({ withdrawals: data || [] });
   } catch (error) {
     console.error('Withdrawal history error:', error);
+
     res.status(500).json({
-      error: 'Could not load withdrawals'
+      error: 'Could not load withdrawal history'
     });
   }
 });
 
-// ==================================================
-// TELEGRAM BOT
-// ==================================================
+// ---------------- TELEGRAM BOT ----------------
 
 bot.start(async (ctx) => {
   try {
