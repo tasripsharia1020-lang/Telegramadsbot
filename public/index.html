@@ -245,7 +245,7 @@ const initData=tg?.initData||'';
 const headers={'Content-Type':'application/json','X-Telegram-Init-Data':initData};
 
 let account=null,mining=null,settings={},legacyUser=null,miningTicker=null,joinOpened=false;
-let adsStatus={enabled:false,remaining:0,daily_limit:5};
+let adsStatus={enabled:false,remaining:0,daily_limit:5,watched:0};
 let adShowing=false;
 
 if(tg){tg.ready();tg.expand()}
@@ -424,8 +424,7 @@ async function joinGroup(){
  }catch(e){b.disabled=false;toast(e.message)}
 }
 
-/* Monetag: the server creates and owns each ymid session.
-   Only the verified Monetag postback can credit ANV. */
+/* Monetag: server-issued ymid; only verified server postback credits ANV. */
 
 function renderAdStatus(){
  const b=document.getElementById('watchAdButton');
@@ -436,11 +435,12 @@ function renderAdStatus(){
  const enabled=adsStatus.enabled===true;
  const remaining=Math.max(0,Number(adsStatus.remaining||0));
  const limit=Math.max(0,Number(adsStatus.daily_limit||5));
+ const watched=Math.max(0,Number(adsStatus.watched||0));
 
  if(!enabled){
   b.disabled=true;
-  b.textContent=remaining<=0&&adsStatus.watched>=limit?'DAILY LIMIT REACHED':'COMING SOON';
-  note.textContent=adsStatus.watched>=limit
+  b.textContent=watched>=limit?'DAILY LIMIT REACHED':'COMING SOON';
+  note.textContent=watched>=limit
    ?'You have used all '+limit+' verified ad rewards for today. Come back tomorrow.'
    :'Rewarded ads are currently unavailable. They will activate after provider approval and secure server verification.';
   description.textContent='Watch a video ad and earn 10 ANV points · Max '+limit+' verified ads/day';
@@ -477,27 +477,52 @@ async function loadAdStatus(){
  renderAdStatus();
 }
 
+/* Polls the server for a newly recorded postback.
+   This function never credits a reward from the browser. */
+async function waitForAdVerification(previousWatched){
+ const deadline=Date.now()+45000;
+
+ while(Date.now()<deadline){
+  await new Promise(resolve=>setTimeout(resolve,3000));
+  await loadAdStatus();
+
+  if(Number(adsStatus.watched||0)>previousWatched){
+   await loadAll();
+   toast('Verified! 10 ANV has been added to your balance.');
+   return true;
+  }
+ }
+
+ toast('Ad event received. Server verification is still pending. Please refresh your balance shortly.');
+ return false;
+}
+
 async function watchRewardedAd(){
  if(adShowing)return;
+
  if(!adsStatus.enabled){
   toast('Rewarded ads are not enabled yet.');
   return;
  }
+
  if(Number(adsStatus.remaining)<=0){
   toast('Daily ad reward limit reached.');
   return;
  }
+
  if(typeof window.show_12354877!=='function'){
   toast('Monetag ad SDK is not ready. Reload the Mini App and try again.');
   return;
  }
 
  const button=document.getElementById('watchAdButton');
+ const previousWatched=Number(adsStatus.watched||0);
+
  adShowing=true;
  renderAdStatus();
 
  try{
-  // Obtain a server-generated session bound to the authenticated Telegram user.
+  // Request a unique ymid generated and stored by the authenticated backend.
   const session=await api('/api/monetag/session',{
    method:'POST',
    body:'{}'
@@ -507,27 +532,31 @@ async function watchRewardedAd(){
    throw new Error('Could not prepare a secure ad session.');
   }
 
+  // Monetag supports ymid and requestVar in this options object.
   const result=await window.show_12354877({
+   type:'end',
    ymid:session.ymid,
    requestVar:'watch_ad'
   });
 
+  // Callback is for user feedback only; it does NOT credit ANV.
   if(result?.reward_event_type==='valued'){
-   toast('Ad completed. Waiting for secure ANV reward verification.');
+   toast('Ad completed. Waiting for server reward verification...');
+   await waitForAdVerification(previousWatched);
+  }else if(result?.reward_event_type==='non_valued'){
+   toast('This ad was not monetized. No ANV reward was issued.');
   }else{
-   toast('Ad closed. Reward will be added only if Monetag verifies it.');
+   toast('Ad finished. Waiting for the provider confirmation...');
+   await waitForAdVerification(previousWatched);
   }
 
-  // Postbacks can arrive after the SDK closes.
-  setTimeout(()=>loadAdStatus(),3000);
-  setTimeout(()=>loadAll(),8000);
  }catch(e){
   console.error('Monetag error:',e);
   toast(e.message||'The ad could not be completed. Please try again later.');
  }finally{
   adShowing=false;
-  renderAdStatus();
   await loadAdStatus();
+  renderAdStatus();
  }
 }
 
