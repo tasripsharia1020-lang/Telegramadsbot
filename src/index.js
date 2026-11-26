@@ -43,6 +43,7 @@ const supabase = createClient(
 
 const bot = new Telegraf(cfg.botToken);
 const app = express();
+
 let botUsername = '';
 
 const allowedOrigins = new Set([
@@ -50,7 +51,8 @@ const allowedOrigins = new Set([
   'https://telegramadsbot-0oan.onrender.com'
 ]);
 
-// CORS
+// ---------------- CORS ----------------
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
@@ -86,7 +88,8 @@ app.use(express.json({
 
 app.use(express.static('public'));
 
-// Telegram Mini App authentication
+// ---------------- TELEGRAM AUTH ----------------
+
 function verifyTelegramInitData(initData) {
   if (!initData) return null;
 
@@ -135,7 +138,9 @@ function verifyTelegramInitData(initData) {
 
   try {
     const user = JSON.parse(params.get('user') || '{}');
+
     if (!user.id) return null;
+
     return user;
   } catch {
     return null;
@@ -165,7 +170,8 @@ function isValidTelegramId(value) {
   return Number.isSafeInteger(Number(value)) && Number(value) > 0;
 }
 
-// ANV settings are controlled through Supabase by the admin.
+// ---------------- ANV SETTINGS ----------------
+
 async function getAnvSetting(key, fallback = 0) {
   const { data, error } = await supabase
     .from('anv_settings')
@@ -177,6 +183,7 @@ async function getAnvSetting(key, fallback = 0) {
   if (!data) return fallback;
 
   const value = Number(data.setting_value);
+
   return Number.isFinite(value) ? value : fallback;
 }
 
@@ -185,14 +192,21 @@ async function ensureAnvAccount(telegramId) {
     .from('anv_accounts')
     .upsert(
       { telegram_id: telegramId },
-      { onConflict: 'telegram_id', ignoreDuplicates: true }
+      {
+        onConflict: 'telegram_id',
+        ignoreDuplicates: true
+      }
     );
 
   if (error) throw error;
 }
 
-// Save old user and create separate ANV account.
-// Existing USDT balance and history are never modified.
+// ---------------- SAVE USER / REFERRAL ----------------
+
+// Old USDT account is preserved.
+// ANV account is separate.
+// Referral credit is retried on later logins.
+// The database RPC must enforce one-time credit.
 async function saveUser(user, referralId = null) {
   const telegramId = Number(user.id);
 
@@ -237,44 +251,56 @@ async function saveUser(user, referralId = null) {
 
   if (updateError) throw updateError;
 
-  let newlyReferred = Boolean(!existing && validReferral);
+  let finalReferrer = existing?.referred_by || null;
 
-  // If the user existed without a referrer, allow a valid first referral
-  // to be attached once. Never overwrite an existing referrer.
-  if (existing && !existing.referred_by && validReferral) {
-    const { data: updatedReferral, error: referralUpdateError } =
+  // Attach a referral only if the account has no referrer.
+  if (!finalReferrer && validReferral) {
+    const { data: updatedReferral, error: referralError } =
       await supabase
         .from('users')
         .update({ referred_by: Number(referralId) })
         .eq('telegram_id', telegramId)
         .is('referred_by', null)
-        .select('telegram_id')
+        .select('referred_by')
         .maybeSingle();
 
-    if (referralUpdateError) throw referralUpdateError;
-    newlyReferred = Boolean(updatedReferral);
+    if (referralError) throw referralError;
+
+    if (updatedReferral?.referred_by) {
+      finalReferrer = updatedReferral.referred_by;
+    } else if (!existing) {
+      // New user was inserted with referred_by in the initial upsert.
+      finalReferrer = Number(referralId);
+    }
   }
 
   await ensureAnvAccount(telegramId);
 
-  // Credit only at the time a referral is first attached.
-  // The database RPC also prevents duplicate referral credits.
-  if (newlyReferred && validReferral) {
+  // Retry the idempotent database RPC on later logins.
+  if (
+    finalReferrer &&
+    isValidTelegramId(finalReferrer) &&
+    Number(finalReferrer) !== telegramId
+  ) {
     const { error: referralCreditError } = await supabase.rpc(
       'anv_credit_referral',
       {
-        p_referrer_id: Number(referralId),
+        p_referrer_id: Number(finalReferrer),
         p_referred_id: telegramId
       }
     );
 
     if (referralCreditError) {
-      console.error('ANV referral credit error:', referralCreditError);
+      console.error(
+        'ANV referral credit error:',
+        referralCreditError
+      );
     }
   }
 }
 
-// Future provider registry. No provider is enabled or connected.
+// ---------------- AD PROVIDERS ----------------
+
 const adProviders = [
   { id: 'monetag', enabled: false, configured: false },
   { id: 'adsterra', enabled: false, configured: false },
@@ -283,6 +309,8 @@ const adProviders = [
   { id: 'hilltopads', enabled: false, configured: false }
 ];
 
+// ---------------- HEALTH ----------------
+
 app.get('/health', (req, res) => {
   res.json({
     ok: true,
@@ -290,14 +318,23 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ---------------- APP CONFIG ----------------
+
 app.get('/api/config', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
 
-    const miningReward = await getAnvSetting('mining_reward', 0);
-    const miningHours = await getAnvSetting('mining_cycle_hours', 24);
-    const dailyReward = await getAnvSetting('daily_checkin_reward', 0);
-    const referralReward = await getAnvSetting('referral_reward', 0);
+    const [
+      miningReward,
+      miningHours,
+      dailyReward,
+      referralReward
+    ] = await Promise.all([
+      getAnvSetting('mining_reward', 0),
+      getAnvSetting('mining_cycle_hours', 24),
+      getAnvSetting('daily_checkin_reward', 0),
+      getAnvSetting('referral_reward', 0)
+    ]);
 
     res.json({
       app_name: 'ANV Verse',
@@ -324,12 +361,18 @@ app.get('/api/config', async (req, res) => {
     });
   } catch (error) {
     console.error('Config error:', error);
-    res.status(500).json({ error: 'Could not load configuration' });
+
+    res.status(500).json({
+      error: 'Could not load configuration'
+    });
   }
 });
 
-// Ads remain unavailable until a provider-specific,
+// ---------------- ADS ----------------
+
+// Ads remain disabled until a provider-specific
 // verified server-side integration is installed.
+
 app.get('/api/ads/status', requireMiniApp, (req, res) => {
   res.set('Cache-Control', 'no-store');
 
@@ -350,7 +393,8 @@ app.all('/api/ad-webhook', (req, res) => {
   });
 });
 
-// Authentication
+// ---------------- AUTH ----------------
+
 app.post('/api/auth', requireMiniApp, async (req, res) => {
   try {
     await saveUser(req.telegramUser);
@@ -364,38 +408,50 @@ app.post('/api/auth', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Auth error:', error);
-    res.status(500).json({ error: 'Could not save user' });
+
+    res.status(500).json({
+      error: 'Could not save user'
+    });
   }
 });
 
-// Existing AdsEarn account. Old USDT balance remains separate.
-app.get('/api/me', requireMiniApp, async (req, res) => {
-  const { data, error } = await supabase
-    .from('users')
-    .select(
-      'telegram_id, username, first_name, balance, total_earned, created_at'
-    )
-    .eq('telegram_id', req.telegramUser.id)
-    .maybeSingle();
+// ---------------- OLD USDT ACCOUNT ----------------
 
-  if (error) {
+app.get('/api/me', requireMiniApp, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select(
+        'telegram_id, username, first_name, balance, total_earned, created_at'
+      )
+      .eq('telegram_id', req.telegramUser.id)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(404).json({
+        error: 'User not found'
+      });
+    }
+
+    res.set('Cache-Control', 'no-store');
+    res.json({ user: data });
+  } catch (error) {
     console.error('Account error:', error);
-    return res.status(500).json({
+
+    res.status(500).json({
       error: 'Could not load account'
     });
   }
-
-  if (!data) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  res.set('Cache-Control', 'no-store');
-  res.json({ user: data });
 });
 
-// ---------------- ANV VERSE API ----------------
+// ==================================================
+// ANV VERSE API
+// ==================================================
 
-// ANV account, mining status and reward settings.
+// ---------------- ANV ACCOUNT ----------------
+
 app.get('/api/anv/me', requireMiniApp, async (req, res) => {
   try {
     const telegramId = req.telegramUser.id;
@@ -412,7 +468,9 @@ app.get('/api/anv/me', requireMiniApp, async (req, res) => {
     ] = await Promise.all([
       supabase
         .from('anv_accounts')
-        .select('telegram_id, balance, total_earned, mining_level, created_at')
+        .select(
+          'telegram_id, balance, total_earned, mining_level, created_at'
+        )
         .eq('telegram_id', telegramId)
         .maybeSingle(),
 
@@ -438,13 +496,16 @@ app.get('/api/anv/me', requireMiniApp, async (req, res) => {
 
     res.json({
       ok: true,
+
       account: accountResult.data || {
         telegram_id: telegramId,
         balance: 0,
         total_earned: 0,
         mining_level: 1
       },
+
       mining: sessionResult.data || null,
+
       settings: {
         mining_reward: miningReward,
         mining_cycle_hours: miningHours,
@@ -456,18 +517,24 @@ app.get('/api/anv/me', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV account error:', error);
-    res.status(500).json({ error: 'Could not load ANV account' });
+
+    res.status(500).json({
+      error: 'Could not load ANV account'
+    });
   }
 });
 
-// Start a new 24-hour mining session.
+// ---------------- MINING START ----------------
+
 app.post('/api/anv/mining/start', requireMiniApp, async (req, res) => {
   try {
     await ensureAnvAccount(req.telegramUser.id);
 
     const { data, error } = await supabase.rpc(
       'anv_start_mining',
-      { p_telegram_id: req.telegramUser.id }
+      {
+        p_telegram_id: req.telegramUser.id
+      }
     );
 
     if (error) throw error;
@@ -476,8 +543,10 @@ app.post('/api/anv/mining/start', requireMiniApp, async (req, res) => {
       const reason = data?.reason || 'could_not_start';
 
       const messages = {
-        reward_not_configured: 'Mining reward has not been configured yet.',
-        already_active: 'Your mining session is already active.'
+        reward_not_configured:
+          'Mining reward has not been configured yet.',
+        already_active:
+          'Your mining session is already active.'
       };
 
       return res.status(409).json({
@@ -494,16 +563,22 @@ app.post('/api/anv/mining/start', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV mining start error:', error);
-    res.status(500).json({ error: 'Could not start mining' });
+
+    res.status(500).json({
+      error: 'Could not start mining'
+    });
   }
 });
 
-// Collect after the mining timer finishes.
+// ---------------- MINING COLLECT ----------------
+
 app.post('/api/anv/mining/collect', requireMiniApp, async (req, res) => {
   try {
     const { data, error } = await supabase.rpc(
       'anv_collect_mining',
-      { p_telegram_id: req.telegramUser.id }
+      {
+        p_telegram_id: req.telegramUser.id
+      }
     );
 
     if (error) throw error;
@@ -512,8 +587,10 @@ app.post('/api/anv/mining/collect', requireMiniApp, async (req, res) => {
       const reason = data?.reason || 'not_ready';
 
       const messages = {
-        no_active_session: 'There is no active mining session.',
-        not_ready: 'Mining is not finished yet.'
+        no_active_session:
+          'There is no active mining session.',
+        not_ready:
+          'Mining is not finished yet.'
       };
 
       return res.status(409).json({
@@ -531,18 +608,60 @@ app.post('/api/anv/mining/collect', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV mining collect error:', error);
-    res.status(500).json({ error: 'Could not collect mining reward' });
+
+    res.status(500).json({
+      error: 'Could not collect mining reward'
+    });
   }
 });
 
-// Daily check-in. Database prevents a second claim on the same day.
+// ---------------- DAILY CHECK-IN STATUS ----------------
+
+// Frontend can use this endpoint to keep the button
+// in CLAIMED state after refresh or reopening the Mini App.
+
+app.get('/api/anv/daily/status', requireMiniApp, async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+      .from('anv_task_claims')
+      .select('id, task_id, claim_date, reward')
+      .eq('telegram_id', req.telegramUser.id)
+      .eq('task_id', 'daily_checkin')
+      .eq('claim_date', today)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.set('Cache-Control', 'no-store');
+
+    res.json({
+      claimed: Boolean(data),
+      task_id: 'daily_checkin',
+      claim_date: today,
+      reward: data?.reward || 0
+    });
+  } catch (error) {
+    console.error('ANV daily status error:', error);
+
+    res.status(500).json({
+      error: 'Could not load daily check-in status'
+    });
+  }
+});
+
+// ---------------- DAILY CHECK-IN CLAIM ----------------
+
 app.post('/api/anv/daily/claim', requireMiniApp, async (req, res) => {
   try {
     await ensureAnvAccount(req.telegramUser.id);
 
     const { data, error } = await supabase.rpc(
       'anv_claim_daily',
-      { p_telegram_id: req.telegramUser.id }
+      {
+        p_telegram_id: req.telegramUser.id
+      }
     );
 
     if (error) throw error;
@@ -551,8 +670,10 @@ app.post('/api/anv/daily/claim', requireMiniApp, async (req, res) => {
       const reason = data?.reason || 'could_not_claim';
 
       const messages = {
-        reward_not_configured: 'Daily check-in reward is not configured yet.',
-        already_claimed: 'You have already claimed today’s check-in reward.'
+        reward_not_configured:
+          'Daily check-in reward is not configured yet.',
+        already_claimed:
+          'You have already claimed today’s check-in reward.'
       };
 
       return res.status(409).json({
@@ -568,11 +689,15 @@ app.post('/api/anv/daily/claim', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV daily claim error:', error);
-    res.status(500).json({ error: 'Could not claim daily reward' });
+
+    res.status(500).json({
+      error: 'Could not claim daily reward'
+    });
   }
 });
 
-// ANV transaction history.
+// ---------------- ANV TRANSACTION HISTORY ----------------
+
 app.get('/api/anv/history', requireMiniApp, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -587,14 +712,21 @@ app.get('/api/anv/history', requireMiniApp, async (req, res) => {
     if (error) throw error;
 
     res.set('Cache-Control', 'no-store');
-    res.json({ transactions: data || [] });
+
+    res.json({
+      transactions: data || []
+    });
   } catch (error) {
     console.error('ANV history error:', error);
-    res.status(500).json({ error: 'Could not load ANV history' });
+
+    res.status(500).json({
+      error: 'Could not load ANV history'
+    });
   }
 });
 
-// ANV referral statistics. Kept separate from old USDT commissions.
+// ---------------- ANV REFERRALS ----------------
+
 app.get('/api/anv/referrals', requireMiniApp, async (req, res) => {
   try {
     const telegramId = req.telegramUser.id;
@@ -643,22 +775,28 @@ app.get('/api/anv/referrals', requireMiniApp, async (req, res) => {
       total_referrals: referrals.length,
       anv_earned: totalRewards,
       reward_per_referral: referralReward,
+
       referral_link: botUsername
         ? `https://t.me/${botUsername}?start=ref_${telegramId}`
         : null,
+
       referrals
     });
   } catch (error) {
     console.error('ANV referral error:', error);
+
     res.status(500).json({
       error: 'Could not load ANV referral statistics'
     });
   }
 });
 
-// ---------------- EXISTING ADS EARN API ----------------
+// ==================================================
+// EXISTING ADS EARN / USDT API
+// ==================================================
 
-// Persistent Group Join task status.
+// ---------------- GROUP JOIN STATUS ----------------
+
 app.get('/api/tasks/status', requireMiniApp, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -671,19 +809,22 @@ app.get('/api/tasks/status', requireMiniApp, async (req, res) => {
     if (error) throw error;
 
     res.set('Cache-Control', 'no-store');
+
     res.json({
       claimed: Boolean(data),
       task_id: 'main_channel'
     });
   } catch (error) {
     console.error('Task status error:', error);
+
     res.status(500).json({
       error: 'Could not load task status'
     });
   }
 });
 
-// Existing USDT referral statistics.
+// ---------------- OLD USDT REFERRALS ----------------
+
 app.get('/api/referrals', requireMiniApp, async (req, res) => {
   try {
     const telegramId = req.telegramUser.id;
@@ -711,6 +852,7 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
 
     for (const item of commissions || []) {
       const id = String(item.referred_telegram_id);
+
       commissionMap.set(
         id,
         (commissionMap.get(id) || 0) + Number(item.amount || 0)
@@ -736,20 +878,24 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
       total_referrals: referrals.length,
       referral_earnings: totalCommission,
       referral_rate: cfg.referralRate,
+
       referral_link: botUsername
         ? `https://t.me/${botUsername}?start=ref_${telegramId}`
         : null,
+
       referrals
     });
   } catch (error) {
     console.error('Referral error:', error);
+
     res.status(500).json({
       error: 'Could not load referral statistics'
     });
   }
 });
 
-// One-time Group Join reward.
+// ---------------- GROUP JOIN REWARD ----------------
+
 app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
   try {
     const member = await bot.telegram.getChatMember(
@@ -757,7 +903,11 @@ app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
       req.telegramUser.id
     );
 
-    const allowed = ['member', 'administrator', 'creator'];
+    const allowed = [
+      'member',
+      'administrator',
+      'creator'
+    ];
 
     if (!allowed.includes(member.status)) {
       return res.status(403).json({
@@ -791,13 +941,15 @@ app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Join task error:', error);
+
     res.status(500).json({
       error: 'Could not verify membership. Please try again.'
     });
   }
 });
 
-// Existing USDT BEP20 withdrawal.
+// ---------------- USDT WITHDRAWAL ----------------
+
 app.post('/api/withdraw', requireMiniApp, async (req, res) => {
   try {
     const amount = Number(req.body.amount);
@@ -851,7 +1003,8 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
       };
 
       return res.status(400).json({
-        error: messages[data?.reason] ||
+        error:
+          messages[data?.reason] ||
           'Withdrawal could not be created.'
       });
     }
@@ -877,14 +1030,24 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
         adminMessage,
         Markup.inlineKeyboard([
           [
-            Markup.button.callback('✅ Approve', `wd_approve_${data.id}`),
-            Markup.button.callback('❌ Reject + Refund', `wd_reject_${data.id}`)
+            Markup.button.callback(
+              '✅ Approve',
+              `wd_approve_${data.id}`
+            ),
+            Markup.button.callback(
+              '❌ Reject + Refund',
+              `wd_reject_${data.id}`
+            )
           ]
         ])
       );
+
       adminNotified = true;
     } catch (notifyError) {
-      console.error('Admin notification failed:', notifyError);
+      console.error(
+        'Admin notification failed:',
+        notifyError
+      );
     }
 
     res.json({
@@ -894,34 +1057,45 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Withdrawal error:', error);
+
     res.status(500).json({
       error: 'Could not create withdrawal'
     });
   }
 });
 
-app.get('/api/withdrawals', requireMiniApp, async (req, res) => {
-  const { data, error } = await supabase
-    .from('withdrawals')
-    .select(
-      'id, amount, payment_method, status, created_at, processed_at'
-    )
-    .eq('telegram_id', req.telegramUser.id)
-    .order('created_at', { ascending: false })
-    .limit(30);
+// ---------------- WITHDRAWAL HISTORY ----------------
 
-  if (error) {
+app.get('/api/withdrawals', requireMiniApp, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('withdrawals')
+      .select(
+        'id, amount, payment_method, status, created_at, processed_at'
+      )
+      .eq('telegram_id', req.telegramUser.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (error) throw error;
+
+    res.set('Cache-Control', 'no-store');
+
+    res.json({
+      withdrawals: data || []
+    });
+  } catch (error) {
     console.error('Withdrawal history error:', error);
-    return res.status(500).json({
+
+    res.status(500).json({
       error: 'Could not load withdrawals'
     });
   }
-
-  res.set('Cache-Control', 'no-store');
-  res.json({ withdrawals: data || [] });
 });
 
-// ---------------- TELEGRAM BOT ----------------
+// ==================================================
+// TELEGRAM BOT
+// ==================================================
 
 bot.start(async (ctx) => {
   try {
@@ -932,16 +1106,23 @@ bot.start(async (ctx) => {
     await saveUser(ctx.from, referralId);
 
     await ctx.reply(
-      `Welcome ${ctx.from.first_name || 'friend'}!\n\nOpen ANV Verse to view your ANV Coin balance, mining, tasks and profile.`,
+      `Welcome ${ctx.from.first_name || 'friend'}!\n\n` +
+      `Open ANV Verse to view your ANV Coin balance, mining, tasks and profile.`,
       Markup.inlineKeyboard([
         [
-          Markup.button.webApp('🚀 Open ANV Verse', cfg.appUrl)
+          Markup.button.webApp(
+            '🚀 Open ANV Verse',
+            cfg.appUrl
+          )
         ]
       ])
     );
   } catch (error) {
     console.error('Start error:', error);
-    ctx.reply('Sorry, setup failed. Please try again later.');
+
+    await ctx.reply(
+      'Sorry, setup failed. Please try again later.'
+    );
   }
 });
 
@@ -954,11 +1135,16 @@ bot.command('menu', (ctx) => {
     'Open ANV Verse:',
     Markup.inlineKeyboard([
       [
-        Markup.button.webApp('🚀 Open ANV Verse', cfg.appUrl)
+        Markup.button.webApp(
+          '🚀 Open ANV Verse',
+          cfg.appUrl
+        )
       ]
     ])
   );
 });
+
+// ---------------- ADMIN WITHDRAWAL LIST ----------------
 
 bot.command('withdrawals', async (ctx) => {
   if (ctx.from.id !== cfg.adminId) {
@@ -994,17 +1180,28 @@ bot.command('withdrawals', async (ctx) => {
       `📌 Status: ${item.status.toUpperCase()}`,
       Markup.inlineKeyboard([
         [
-          Markup.button.callback('✅ Approve', `wd_approve_${item.id}`),
-          Markup.button.callback('❌ Reject + Refund', `wd_reject_${item.id}`)
+          Markup.button.callback(
+            '✅ Approve',
+            `wd_approve_${item.id}`
+          ),
+          Markup.button.callback(
+            '❌ Reject + Refund',
+            `wd_reject_${item.id}`
+          )
         ]
       ])
     );
   }
 });
 
+// ---------------- APPROVE / REJECT ----------------
+
 bot.action(/^wd_(approve|reject)_([0-9a-f-]+)$/i, async (ctx) => {
   if (ctx.from.id !== cfg.adminId) {
-    return ctx.answerCbQuery('Not authorized', { show_alert: true });
+    return ctx.answerCbQuery(
+      'Not authorized',
+      { show_alert: true }
+    );
   }
 
   try {
@@ -1030,19 +1227,29 @@ bot.action(/^wd_(approve|reject)_([0-9a-f-]+)$/i, async (ctx) => {
     }
 
     await ctx.editMessageText(
-      `Withdrawal ${approve ? 'approved' : 'rejected and refunded'}.\nID: ${id}`
+      `Withdrawal ${
+        approve ? 'approved' : 'rejected and refunded'
+      }.\nID: ${id}`
     );
 
     await ctx.answerCbQuery('Done');
   } catch (error) {
     console.error('Admin action error:', error);
-    await ctx.answerCbQuery('Action failed', { show_alert: true });
+
+    await ctx.answerCbQuery(
+      'Action failed',
+      { show_alert: true }
+    );
   }
 });
+
+// ---------------- BOT ERROR HANDLER ----------------
 
 bot.catch((error) => {
   console.error('Telegram bot error:', error);
 });
+
+// ---------------- START SERVER ----------------
 
 const server = app.listen(cfg.port, () => {
   console.log(`Server listening on port ${cfg.port}`);
@@ -1051,12 +1258,15 @@ const server = app.listen(cfg.port, () => {
 (async () => {
   try {
     const me = await bot.telegram.getMe();
+
     botUsername = me.username || '';
 
     await bot.launch();
 
     console.log(
-      `Telegram bot started${botUsername ? ` as @${botUsername}` : ''}`
+      `Telegram bot started${
+        botUsername ? ` as @${botUsername}` : ''
+      }`
     );
   } catch (error) {
     console.error('Telegram bot launch failed:', error);
