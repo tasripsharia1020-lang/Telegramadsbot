@@ -7,97 +7,62 @@
 <meta name="theme-color" content="#080808">
 <title>AdsEarn</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 <style>
-:root{--gold:#ffd15c;--orange:#ff9b35;--bg:#090d18;--panel:#141c2d;--muted:#9aa8bd;--line:#26334b;--green:#45d6a0}
+:root{--gold:#ffd15c;--bg:#090d18;--panel:#141c2d;--muted:#9aa8bd;--line:#26334b;--green:#45d6a0}
 *{box-sizing:border-box}
 body{margin:0;background:radial-gradient(ellipse at 50% -15%,#293b61 0,#101827 42%,#090d18 100%);color:#f7f9ff;font:15px system-ui,Arial,sans-serif;padding:14px 14px 100px}
 .wrap{max-width:560px;margin:auto}
 .head{display:flex;align-items:center;justify-content:space-between;padding:8px 4px 20px}
-.brand{font-size:28px;font-weight:900;letter-spacing:-1px}
-.brand span{color:var(--gold)}
+.brand{font-size:28px;font-weight:900;letter-spacing:-1px}.brand span{color:var(--gold)}
 .tag{color:var(--muted);font-size:11px;letter-spacing:1.4px}
 .panel{background:linear-gradient(145deg,#1a263b,#111a2b);border:1px solid var(--line);border-radius:20px;padding:18px;margin:0 0 13px;box-shadow:0 10px 28px #0003}
 .balance{border-color:#80652e;background:linear-gradient(135deg,#28354a,#182235 65%,#2d281e)}
 .small{font-size:12px;color:var(--muted);line-height:1.5}
 .amount{font-size:clamp(27px,7vw,38px);font-weight:900;margin:7px 0;color:white;overflow-wrap:anywhere}
 .gold{color:var(--gold)}
-.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.stat{padding:15px 13px;margin:0}
-.stat strong{display:block;font-size:19px;margin-top:7px}
+.stats,.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat{padding:15px 13px;margin:0}.stat strong{display:block;font-size:19px;margin-top:7px}
 .section-title{font-size:20px;font-weight:850;margin:5px 2px 14px}
-.watch{width:100%;border:0;border-radius:16px;padding:18px 12px;background:linear-gradient(110deg,#8cebd1,#36c7a7 55%,#239eaa);color:#082b2c;font-weight:950;font-size:19px;box-shadow:0 8px 24px #31c9ad25}
-.watch:disabled,button:disabled{opacity:.48}
+.watch{width:100%;border:0;border-radius:16px;padding:18px 12px;background:linear-gradient(110deg,#8cebd1,#36c7a7 55%,#239eaa);color:#082b2c;font-weight:950;font-size:17px}
+.watch:disabled,button:disabled{opacity:.48;cursor:not-allowed}
 .rewardline{text-align:center;color:#e5eaf3;margin:11px 0 12px;font-size:13px}
 .timer{font-size:25px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums;margin:7px 0}
 .tile{background:#1a263b;border:1px solid var(--line);border-radius:16px;padding:16px;color:#fff}
 .tile b{display:block;margin-bottom:6px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-button,input,select{font:inherit}
-button{cursor:pointer}
+button,input,select{font:inherit}button{cursor:pointer}
 .subbtn{width:100%;border:1px solid #53627b;background:#202d43;color:#f4d58b;border-radius:13px;padding:14px;font-weight:800;margin-top:10px}
 .primary{background:linear-gradient(100deg,#ffe18a,#ffad45);color:#182033;border:0}
 .field{width:100%;margin-top:10px;padding:14px;border-radius:12px;border:1px solid #35445e;background:#0e1728;color:white}
 .status{color:#b8c6dc;font-size:12px;min-height:18px;margin:14px 3px;text-align:center}
 .history-item{border-top:1px solid #35445e;padding:12px 0;font-size:13px;color:#dce5f3}
-.tab{display:none;animation:fade .18s ease}
-.tab.active{display:block}
+.tab{display:none;animation:fade .18s ease}.tab.active{display:block}
 @keyframes fade{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:none}}
 .bottom-nav{position:fixed;z-index:5;left:0;right:0;bottom:0;padding:9px 8px calc(9px + env(safe-area-inset-bottom));background:#0c1422ed;border-top:1px solid #2a3850;backdrop-filter:blur(14px);display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
 .nav-btn{border:0;background:transparent;color:#91a0b7;border-radius:12px;padding:8px 2px 6px;font-size:10px;font-weight:750}
 .nav-btn span{display:block;font-size:19px;margin-bottom:3px}
 .nav-btn.active{background:#26334a;color:var(--gold)}
-.checking-overlay{display:none;position:fixed;inset:0;z-index:20;background:#050a13c9;backdrop-filter:blur(7px);align-items:center;justify-content:center;padding:24px}
-.checking-overlay.show{display:flex}
-.checking-card{width:min(100%,310px);background:#19263a;border:1px solid #465774;border-radius:22px;padding:27px 22px;text-align:center;box-shadow:0 18px 60px #0008}
+.checking-overlay,.success-overlay{display:none;position:fixed;inset:0;z-index:20;background:#050a13d9;backdrop-filter:blur(7px);align-items:center;justify-content:center;padding:24px}
+.checking-overlay.show,.success-overlay.show{display:flex}
+.checking-card,.success-card{width:min(100%,330px);background:#19263a;border:1px solid #465774;border-radius:22px;padding:27px 22px;text-align:center;box-shadow:0 18px 60px #0008}
 .spinner{width:48px;height:48px;border:4px solid #52627c;border-top-color:var(--gold);border-radius:50%;margin:0 auto 17px;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .checking-title{font-size:18px;font-weight:850;margin-bottom:7px}
 .checking-desc{font-size:13px;color:#aebbd0;line-height:1.5}
-.toast{position:fixed;z-index:30;left:16px;right:16px;bottom:88px;max-width:520px;margin:auto;background:#12382f;border:1px solid #2d9c78;color:#b9ffe6;border-radius:14px;padding:14px 16px;text-align:center;font-weight:800;display:none;box-shadow:0 10px 30px #0007}
+.toast{position:fixed;z-index:30;left:16px;right:16px;bottom:88px;max-width:520px;margin:auto;background:#12382f;border:1px solid #2d9c78;color:#b9ffe6;border-radius:14px;padding:14px 16px;text-align:center;font-weight:800;display:none}
 .toast.show{display:block}
 .withdraw-head{display:flex;align-items:center;gap:14px;margin-bottom:16px}
 .withdraw-coin{width:54px;height:54px;border-radius:18px;display:grid;place-items:center;font-size:25px;font-weight:950;box-shadow:0 8px 22px #0005;flex:none}
 .coin-usdt{background:linear-gradient(145deg,#35d6a2,#087c68);color:#fff}
 .method-hint{display:flex;align-items:center;gap:10px;background:#0d1728;border:1px solid #34445f;border-radius:14px;padding:11px 12px;margin-top:12px;color:#dce7f7;font-size:12px}
 .method-hint .withdraw-coin{width:34px;height:34px;border-radius:11px;font-size:17px}
-.withdraw-note{font-size:11px;color:#9aa8bd;line-height:1.55;margin:12px 2px 2px}
-.success-overlay{display:none;position:fixed;inset:0;z-index:40;background:#050a13d9;backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:22px}
-.success-overlay.show{display:flex}
-.success-card{width:min(100%,340px);padding:27px 22px 22px;text-align:center;border-radius:26px;background:linear-gradient(150deg,#1d3044,#111b2d);border:1px solid #367f6a;box-shadow:0 24px 80px #0009;animation:pop .25s ease}
-.success-sticker{width:88px;height:88px;border-radius:28px;margin:0 auto 16px;display:grid;place-items:center;font-size:48px;background:radial-gradient(circle at 30% 25%,#8effd3,#1a9d78 70%);box-shadow:0 10px 30px #20bd8b55}
-.success-card h3{font-size:21px;margin:0 0 8px}
-.success-card p{font-size:13px;line-height:1.55;color:#b8c6d8;margin:0 0 16px}
-.success-ref{font-size:11px;color:#7fe5bf;margin-bottom:15px;overflow-wrap:anywhere}
-@keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
-.home-refresh{margin:0 0 13px;padding:14px 16px;border:1px solid #315b68;background:linear-gradient(120deg,#12313b,#14253a 65%,#182b3d);border-radius:17px;box-shadow:0 8px 24px #0003}
-.home-refresh .refresh-label{font-size:10px;font-weight:800;letter-spacing:1.25px;color:#91d9d0}
-.home-refresh .timer{font-size:22px;margin:3px 0 1px;color:#8ef0cb}
-.home-refresh .refresh-info{font-size:11px;color:#a9c4d0;line-height:1.4}
-.watch-panel{border-color:#4b596f;background:linear-gradient(145deg,#1b2a40,#111d30)}
-.watch-title{font-size:16px;font-weight:850;letter-spacing:.2px;margin-bottom:12px;color:#f2f6ff}
-.watch-copy{font-size:11px;line-height:1.5;color:#aab9cc}
-.watch-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-.watch-metric{padding:13px;border:1px solid #2c4059;border-radius:14px;background:#101b2c}
-.watch-metric .small{font-size:10px;letter-spacing:.8px;font-weight:800}
-.watch-metric .amount{font-size:23px;margin:5px 0 0;color:#8cebd1}
-.task-card{padding:15px 16px;background:linear-gradient(145deg,#1a2b40,#121e30);border-color:#2d4b5b}
-.task-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.task-reward{font-size:17px;font-weight:900;color:#80e9c6;white-space:nowrap}
-.task-steps{font-size:12px;color:#aebed0;line-height:1.55;margin:9px 0 12px}
-.task-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.task-actions .subbtn{margin:0;padding:12px 7px;font-size:11px}
-.task-actions .primary{background:linear-gradient(110deg,#8cebd1,#39c6a5);color:#082b2c}
-.task-state{font-size:11px;color:#80e9c6;font-weight:800;letter-spacing:.5px}
+.withdraw-note,.field-hint{font-size:11px;color:#9aa8bd;line-height:1.55;margin:12px 2px 2px}
 .withdraw-status{min-height:0;margin:10px 2px 0;padding:0;text-align:left;font-size:12px;line-height:1.45}
 .withdraw-status:not(:empty){padding:10px 12px;border:1px solid #7d593d;border-radius:11px;background:#382719;color:#ffd3a4}
+.withdraw-status.error{border-color:#8c4a4a;background:#3b2028;color:#ffc1c1}
+.withdraw-status.success{border-color:#28795f;background:#12382f;color:#b9ffe6}
 .withdraw-balance{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 14px;margin:4px 0 17px;border:1px solid #285b58;border-radius:15px;background:linear-gradient(110deg,#102f35,#122638)}
 .withdraw-balance-value{font-size:19px;font-weight:900;color:#8cebd1;margin-top:3px}
 .minimum-chip{font-size:10px;font-weight:850;color:#ffe2a0;background:#49391f;border:1px solid #80652e;border-radius:999px;padding:7px 10px;white-space:nowrap}
-.withdraw-field-head{display:flex;justify-content:space-between;align-items:center;margin-top:5px}
-.field-hint{font-size:10px;color:#91a3ba;margin:6px 2px 10px;line-height:1.4}
-.withdraw-status.error{border-color:#8c4a4a;background:#3b2028;color:#ffc1c1}
-.withdraw-status.success{border-color:#28795f;background:#12382f;color:#b9ffe6}
 .ref-link-box{display:flex;gap:8px;align-items:center;margin-top:13px}
 .ref-link-box input{min-width:0;flex:1;margin:0;font-size:11px;padding:12px}
 .ref-link-box button{width:auto;white-space:nowrap;margin:0;padding:12px 13px}
@@ -110,6 +75,24 @@ button{cursor:pointer}
 .ref-user-name{font-size:13px;font-weight:750;overflow-wrap:anywhere}
 .ref-user-earned{font-size:12px;color:#8cebd1;font-weight:800;white-space:nowrap}
 .ref-empty{font-size:12px;color:#9aa8bd;text-align:center;padding:16px 5px}
+.task-card{padding:15px 16px;background:linear-gradient(145deg,#1a2b40,#121e30);border-color:#2d4b5b}
+.task-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.task-reward{font-size:17px;font-weight:900;color:#80e9c6;white-space:nowrap}
+.task-steps{font-size:12px;color:#aebed0;line-height:1.55;margin:9px 0 12px}
+.task-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.task-actions .subbtn{margin:0;padding:12px 7px;font-size:11px}
+.task-actions .primary{background:linear-gradient(110deg,#8cebd1,#39c6a5);color:#082b2c}
+.task-state{font-size:11px;color:#80e9c6;font-weight:800;letter-spacing:.5px}
+.home-refresh{margin:0 0 13px;padding:14px 16px;border:1px solid #315b68;background:linear-gradient(120deg,#12313b,#14253a 65%,#182b3d);border-radius:17px}
+.refresh-label{font-size:10px;font-weight:800;letter-spacing:1.25px;color:#91d9d0}
+.refresh-info{font-size:11px;color:#a9c4d0;line-height:1.4}
+.watch-panel{border-color:#4b596f;background:linear-gradient(145deg,#1b2a40,#111d30)}
+.watch-title{font-size:16px;font-weight:850;margin-bottom:12px;color:#f2f6ff}
+.watch-copy{font-size:11px;line-height:1.5;color:#aab9cc}
+.watch-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.watch-metric{padding:13px;border:1px solid #2c4059;border-radius:14px;background:#101b2c}
+.watch-metric .small{font-size:10px;letter-spacing:.8px;font-weight:800}
+.watch-metric .amount{font-size:23px;margin:5px 0 0;color:#8cebd1}
 @media(max-width:370px){.task-actions{grid-template-columns:1fr}.watch-metrics{gap:7px}.ref-link-box{flex-wrap:wrap}.ref-link-box button{width:100%}}
 @media(min-width:500px){.bottom-nav{left:calc(50% - 280px);right:calc(50% - 280px);border:1px solid #2a3850;border-bottom:0;border-radius:18px 18px 0 0}}
 </style>
@@ -123,9 +106,9 @@ button{cursor:pointer}
 
 <section class="tab active" id="tab-home">
 <div class="home-refresh">
-<div class="refresh-label">YOUR NEXT AD SLOT REFRESH</div>
-<div class="timer" id="countdown">READY</div>
-<div class="refresh-info" id="adsInfo">Loading ad status…</div>
+<div class="refresh-label">AD NETWORK STATUS</div>
+<div class="timer" id="countdown">UNAVAILABLE</div>
+<div class="refresh-info" id="adsInfo">Advertising partners are being reviewed. Ads are currently disabled.</div>
 </div>
 <div class="status" data-status="home"></div>
 <div class="panel balance">
@@ -135,11 +118,11 @@ button{cursor:pointer}
 </div>
 <div class="stats">
 <section class="panel stat"><div class="small">TODAY'S EARNINGS</div><strong id="todayEarn">$0.000000</strong></section>
-<section class="panel stat"><div class="small">ADS WATCHED · 24H</div><strong><span id="adsWatched">0</span> / <span id="adsLimit">500</span></strong></section>
+<section class="panel stat"><div class="small">ADS WATCHED · 24H</div><strong><span id="adsWatched">0</span> / <span id="adsLimit">—</span></strong></section>
 </div>
 <div class="grid" style="margin-top:12px">
-<div class="tile"><b>🎁 Ad reward</b><span class="gold">$0.005 USDT</span><div class="small">Per completed ad</div></div>
-<div class="tile"><b>👥 Referral rate</b><span class="gold">10%</span><div class="small">Eligible ad rewards</div></div>
+<div class="tile"><b>🎁 Ad rewards</b><span class="gold">Not active</span><div class="small">No ads are running</div></div>
+<div class="tile"><b>👥 Referral rate</b><span class="gold">10%</span><div class="small">Eligible ad rewards only</div></div>
 </div>
 </section>
 
@@ -147,14 +130,14 @@ button{cursor:pointer}
 <div class="status" data-status="watch"></div>
 <div class="section-title">Watch Ads</div>
 <div class="panel watch-panel">
-<div class="watch-title">Watch a short ad. Earn USDT.</div>
-<button class="watch" id="watchAdsBtn">▶ &nbsp; WATCH ADS</button>
-<div class="rewardline">Earn <b class="gold">$0.005 USDT</b> per completed ad</div>
-<div class="watch-copy">Each completed ad becomes available again after 24 hours. Up to 500 rewarded ads in a rolling 24-hour window.</div>
+<div class="watch-title">Advertising partners are being reviewed.</div>
+<button class="watch" id="watchAdsBtn" disabled>ADS CURRENTLY UNAVAILABLE</button>
+<div class="rewardline">Rewarded ads are not active yet.</div>
+<div class="watch-copy">Ads will become available after an advertising partner is approved and its secure reward verification is configured. No ads are running right now.</div>
 </div>
 <div class="watch-metrics">
-<div class="watch-metric"><div class="small">ADS WATCHED</div><div class="amount"><span id="watchCount">0</span><span class="small"> / 500</span></div></div>
-<div class="watch-metric"><div class="small">NEXT SLOT REFRESH</div><div class="timer" id="watchCountdown" style="font-size:18px;margin:7px 0 0">READY</div></div>
+<div class="watch-metric"><div class="small">ADS WATCHED</div><div class="amount">—</div></div>
+<div class="watch-metric"><div class="small">AD STATUS</div><div class="timer" style="font-size:18px;margin:7px 0 0">OFFLINE</div></div>
 </div>
 </section>
 
@@ -163,7 +146,7 @@ button{cursor:pointer}
 <div class="section-title">Tasks & Rewards</div>
 <div class="panel task-card">
 <div class="task-top"><b>✦ Join AdsEarn Community</b><span class="task-reward">+$0.05</span></div>
-<div class="task-steps">Step 1 · Join our Telegram group<br>Step 2 · Return here and claim your reward</div>
+<div class="task-steps">Step 1 · Join our Telegram group<br>Step 2 · Return here and claim your one-time reward</div>
 <div class="task-actions">
 <button class="subbtn primary" id="joinGroupBtn">1 · JOIN GROUP</button>
 <button class="subbtn" id="claimJoinBtn">2 · CLAIM REWARD</button>
@@ -183,19 +166,18 @@ button{cursor:pointer}
 <div><div class="small">AVAILABLE TO WITHDRAW</div><div class="withdraw-balance-value" id="withdrawBalance">$0.000000 USDT</div></div>
 <div class="minimum-chip">Min. $1.00 USDT</div>
 </div>
-<div class="withdraw-field-head"><label class="small" for="amount">Withdrawal amount</label><span class="small">USDT</span></div>
+<label class="small" for="amount">Withdrawal amount · USDT</label>
 <input class="field" id="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="Enter amount (e.g. 1.00)">
 <div class="field-hint">Minimum $1.00 · You can withdraw up to your available balance.</div>
-<label class="small" for="method" style="display:block;margin-top:12px">Select payment network</label>
-<select class="field" id="method">
-<option value="">Choose a payment method</option>
+<label class="small" for="method" style="display:block;margin-top:12px">Payment network</label>
+<select class="field" id="method" disabled>
 <option value="USDT — BNB Smart Chain (BEP20)">USDT — BNB Smart Chain (BEP20)</option>
 </select>
-<div class="method-hint" id="methodHint"><div class="withdraw-coin coin-usdt">₮</div><div><b>USDT · BNB Smart Chain</b><div class="small">Select USDT BEP20 to continue</div></div></div>
+<div class="method-hint"><div class="withdraw-coin coin-usdt">₮</div><div><b>USDT · BNB Smart Chain (BEP20)</b><div class="small">Enter your BEP20 receiving address</div></div></div>
 <label class="small" for="details" style="display:block;margin-top:13px">Your receiving wallet address</label>
 <input class="field" id="details" type="text" placeholder="0x… enter your BEP20 wallet address" autocomplete="off" autocapitalize="off" spellcheck="false" required>
 <div class="field-hint">Enter your 42-character BNB Smart Chain (BEP20) address beginning with 0x.</div>
-<div class="status withdraw-status" data-status="withdraw" id="withdrawStatus"></div>
+<div class="status withdraw-status" id="withdrawStatus"></div>
 <div class="withdraw-note">Please double-check your wallet address and selected network. Incorrect details may cause permanent loss of funds. Requests are reviewed manually by the AdsEarn admin.</div>
 <button class="subbtn primary" id="withdrawBtn">↗ &nbsp; SUBMIT WITHDRAWAL</button>
 </div>
@@ -209,14 +191,13 @@ button{cursor:pointer}
 <div style="font-size:35px">👥</div>
 <b>Invite friends. Earn together.</b>
 <div class="amount gold">10%</div>
-<div class="small">Earn a 10% commission from your friends’ eligible ad rewards.</div>
+<div class="small">Earn a 10% commission from your friends’ eligible ad rewards. Referral ad commissions are inactive while ads are disabled.</div>
 <div class="ref-link-box">
 <input class="field" id="refLink" readonly placeholder="Your referral link">
 <button class="subbtn primary" id="copyRefBtn">COPY LINK</button>
 </div>
 <button class="subbtn" id="refBtn">↗ &nbsp; SHARE INVITE</button>
 </div>
-
 <div class="section-title">Referral Overview</div>
 <div class="ref-stats">
 <div class="ref-stat"><div class="small">TOTAL REFERRALS</div><strong id="totalReferrals">0</strong></div>
@@ -248,193 +229,234 @@ button{cursor:pointer}
 </div>
 <div class="success-overlay" id="withdrawSuccess" role="dialog" aria-modal="true">
 <div class="success-card">
-<div class="success-sticker">🎉</div>
+<div style="font-size:48px;margin-bottom:12px">🎉</div>
 <h3>Request submitted!</h3>
 <p>Your withdrawal request has been sent successfully. The AdsEarn admin will review it.</p>
-<div class="success-ref" id="withdrawSuccessDetail">Withdrawal request received</div>
+<div class="small" id="withdrawSuccessDetail"></div>
 <button class="subbtn primary" id="closeWithdrawSuccess">GOT IT ✓</button>
 </div>
 </div>
 <div class="toast" id="successToast">✓ $0.05 USDT added to your balance</div>
 
 <script>
-const tg=window.Telegram?.WebApp,initData=tg?.initData||'';
-const api=(path,body)=>fetch(path,{
- method:body?'POST':'GET',
- headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData},
- body:body?JSON.stringify(body):undefined
-}).then(async r=>{
- const t=await r.text();let d={};
- try{d=t?JSON.parse(t):{}}catch{}
- if(!r.ok)throw new Error(d.error||`Request failed (${r.status})`);
- return d;
-});
-
+const API_BASE='https://telegramadsbot-0oan.onrender.com';
+const tg=window.Telegram?.WebApp;
+const initData=tg?.initData||'';
 const $=id=>document.getElementById(id);
-let cfg={daily_limit:500,minimum_withdrawal:1000000,ad_reward:5000,adsgram_block_id:'61753',bot_username:'',group_url:'https://t.me/adseearn'};
-let adController=null,adBusy=false,nextResetAt=null,currentBalance=0;
+
+let cfg={
+ minimum_withdrawal:1000000,
+ join_reward:50000,
+ bot_username:'',
+ group_url:'https://t.me/adseearn',
+ referral_rate:10,
+ ads_enabled:false
+};
+let currentBalance=0;
 
 const money=n=>'$'+(Number(n||0)/1000000).toFixed(6);
 
-function status(s){
+async function api(path,body){
+ const response=await fetch(API_BASE+path,{
+  method:body?'POST':'GET',
+  headers:{
+   'Content-Type':'application/json',
+   'X-Telegram-Init-Data':initData
+  },
+  body:body?JSON.stringify(body):undefined
+ });
+ const raw=await response.text();
+ let data={};
+ try{data=raw?JSON.parse(raw):{}}catch{}
+ if(!response.ok)throw new Error(data.error||data.message||`Request failed (${response.status})`);
+ return data;
+}
+
+function status(message){
  const active=document.querySelector('.tab.active');
  const box=active?.querySelector('.status');
- if(box)box.textContent=s;
+ if(box)box.textContent=message||'';
 }
+
 function switchTab(name){
- document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.id==='tab-'+name));
- document.querySelectorAll('.nav-btn').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));
+ document.querySelectorAll('.tab').forEach(tab=>{
+  tab.classList.toggle('active',tab.id==='tab-'+name);
+ });
+ document.querySelectorAll('.nav-btn').forEach(button=>{
+  button.classList.toggle('active',button.dataset.tab===name);
+ });
  window.scrollTo({top:0,behavior:'smooth'});
  if(name==='referral')loadReferralStats().catch(e=>status(e.message));
- if(name==='withdraw')loadAccount().catch(()=>{});
+ if(name==='withdraw')loadAccount().catch(e=>status(e.message));
+ if(name==='tasks')loadTaskStatus().catch(e=>status(e.message));
 }
-document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
 
-function showChecking(on){$('checkingOverlay').classList.toggle('show',on)}
+document.querySelectorAll('.nav-btn').forEach(button=>{
+ button.addEventListener('click',()=>switchTab(button.dataset.tab));
+});
+
+function showChecking(show){
+ $('checkingOverlay').classList.toggle('show',show);
+}
+
 function showSuccess(){
- const t=$('successToast');t.classList.add('show');
- setTimeout(()=>t.classList.remove('show'),3500);
+ const toast=$('successToast');
+ toast.classList.add('show');
+ setTimeout(()=>toast.classList.remove('show'),3500);
 }
 
 async function loadConfig(){
- cfg={...cfg,...await api('/api/config')};
- $('adsLimit').textContent=cfg.daily_limit;
+ const data=await api('/api/config');
+ cfg={...cfg,...data};
+
+ cfg.ads_enabled=false;
+ $('adsInfo').textContent='Advertising partners are being reviewed. Ads are currently disabled.';
+ $('countdown').textContent='UNAVAILABLE';
+ $('adsLimit').textContent='—';
+ $('todayEarn').textContent='$0.000000';
+ $('adsWatched').textContent='0';
+
  $('joinGroupBtn').onclick=()=>{
-  if(tg?.openTelegramLink)tg.openTelegramLink(cfg.group_url||'https://t.me/adseearn');
-  else window.open(cfg.group_url||'https://t.me/adseearn','_blank');
+  const url=cfg.group_url||'https://t.me/adseearn';
+  if(tg?.openTelegramLink)tg.openTelegramLink(url);
+  else window.open(url,'_blank');
  };
- if(window.Adsgram?.init){
-  try{adController=window.Adsgram.init({blockId:String(cfg.adsgram_block_id),debug:false})}
-  catch(e){status('AdsGram could not initialize: '+(e.message||e))}
- }else{$('adsInfo').textContent='AdsGram SDK could not load.'}
 }
 
 async function loadAccount(){
- const r=await api('/api/me');
- currentBalance=Number(r.user.balance||0);
+ const data=await api('/api/me');
+ const user=data.user||{};
+ currentBalance=Number(user.balance||0);
+
  $('balance').textContent=money(currentBalance)+' USDT';
- $('earned').textContent=money(r.user.total_earned);
+ $('earned').textContent=money(user.total_earned||0);
  $('withdrawBalance').textContent=money(currentBalance)+' USDT';
 }
 
 async function loadAdsStatus(){
- const r=await api('/api/ads/status');
- $('adsWatched').textContent=r.watched;
- $('watchCount').textContent=r.watched;
- $('adsLimit').textContent=r.daily_limit;
- $('todayEarn').textContent=money(r.earned_24h);
- nextResetAt=r.next_reset_at?new Date(r.next_reset_at):null;
- $('watchAdsBtn').disabled=!adController||r.remaining<=0;
- $('adsInfo').textContent=`${r.watched} watched · ${r.remaining} remaining in the rolling 24-hour window.`;
- renderCountdown();
+ // All advertising providers are intentionally disabled.
+ $('watchAdsBtn').disabled=true;
+ $('watchAdsBtn').textContent='ADS CURRENTLY UNAVAILABLE';
+ $('adsInfo').textContent='No advertising network is active right now.';
+ $('countdown').textContent='UNAVAILABLE';
+ $('todayEarn').textContent='$0.000000';
+ $('adsWatched').textContent='0';
+ $('adsLimit').textContent='—';
 }
 
-function renderCountdown(){
- if(!nextResetAt){
-  $('countdown').textContent='READY';
-  $('watchCountdown').textContent='READY';
-  return;
+function setTaskClaimed(){
+ $('claimJoinBtn').textContent='✓ CLAIMED';
+ $('claimJoinBtn').disabled=true;
+ $('taskState').textContent='✓ REWARD CLAIMED';
+}
+
+async function loadTaskStatus(){
+ const result=await api('/api/tasks/status');
+ if(result.claimed===true){
+  setTaskClaimed();
+ }else{
+  $('claimJoinBtn').textContent='2 · CLAIM REWARD';
+  $('claimJoinBtn').disabled=false;
+  $('taskState').textContent='';
  }
- let ms=Math.max(0,nextResetAt.getTime()-Date.now());
- if(ms<=0){
-  $('countdown').textContent='REFRESHING…';
-  $('watchCountdown').textContent='REFRESHING…';
-  loadAdsStatus().catch(()=>{});
-  return;
- }
- let h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000);
- let v=[h,m,s].map(x=>String(x).padStart(2,'0')).join(':');
- $('countdown').textContent=v;
- $('watchCountdown').textContent=v;
 }
 
 async function start(){
- if(!tg||!initData){status('Open AdsEarn from your Telegram bot.');return}
- tg.ready();tg.expand();
+ if(!tg||!initData){
+  status('Open AdsEarn from your Telegram bot.');
+  return;
+ }
+
+ tg.ready();
+ tg.expand();
+
  try{
   await api('/api/auth',{});
   await loadConfig();
-  await loadAccount();
-  await loadAdsStatus();
- }catch(e){status(e.message)}
-}
-
-$('watchAdsBtn').onclick=async()=>{
- if(adBusy||!adController)return;
- adBusy=true;$('watchAdsBtn').disabled=true;
- const before=Number($('adsWatched').textContent);
- status('Opening AdsGram…');
- try{
-  const result=await adController.show();
-  if(!result||result.done!==true){status('Ad not completed. No reward added.');return}
-  status('Ad completed. Waiting for server confirmation…');
-  let ok=false;
-  for(let i=0;i<12;i++){
-   await new Promise(r=>setTimeout(r,1500));
-   const st=await api('/api/ads/status');
-   await loadAccount();await loadAdsStatus();
-   if(st.watched>before){ok=true;break}
-  }
-  status(ok?'Ad reward confirmed: $0.005 USDT.':'Ad finished, but AdsGram server callback has not confirmed the reward yet.');
- }catch(e){
-  const msg=e?.description||e?.message||String(e);
-  status(msg.includes('not active')?'AdsGram Block 61753 is not active. Activate it in AdsGram Partner Dashboard first.':msg);
- }finally{
-  adBusy=false;
-  try{await loadAdsStatus()}catch{}
+  await Promise.all([
+   loadAccount(),
+   loadAdsStatus(),
+   loadTaskStatus()
+  ]);
+ }catch(error){
+  status(error.message||'Could not load your account. Please try again.');
  }
-};
+}
 
 $('claimJoinBtn').onclick=async()=>{
  if($('claimJoinBtn').disabled)return;
- showChecking(true);$('claimJoinBtn').disabled=true;
+
+ showChecking(true);
+ $('claimJoinBtn').disabled=true;
+
  try{
   await api('/api/tasks/join',{});
   await loadAccount();
-  $('claimJoinBtn').textContent='✓ CLAIMED';
-  $('claimJoinBtn').disabled=true;
-  $('taskState').textContent='✓ REWARD CLAIMED';
+  setTaskClaimed();
   status('Group membership verified successfully.');
   showSuccess();
- }catch(e){
-  if(e.message==='Task already completed'){
-   $('claimJoinBtn').textContent='✓ CLAIMED';
-   $('claimJoinBtn').disabled=true;
-   $('taskState').textContent='✓ REWARD CLAIMED';
+ }catch(error){
+  if(
+   error.message.toLowerCase().includes('already completed')||
+   error.message.toLowerCase().includes('already claimed')
+  ){
+   setTaskClaimed();
    status('This reward has already been claimed.');
   }else{
    $('claimJoinBtn').disabled=false;
-   status(e.message==='Join the required channel first'?'Please join the AdsEarn group first, then claim your reward.':e.message);
+   status(error.message==='Join the required channel first'
+    ?'Please join the AdsEarn group first, then claim your reward.'
+    :error.message);
   }
- }finally{showChecking(false)}
+ }finally{
+  showChecking(false);
+ }
 };
 
 $('method').value='USDT — BNB Smart Chain (BEP20)';
-$('method').disabled=true;
-$('methodHint').innerHTML='<div class="withdraw-coin coin-usdt">₮</div><div><b>USDT · BNB Smart Chain (BEP20)</b><div class="small">Enter your BEP20 (0x…) receiving address</div></div>';
-$('details').placeholder='Paste your BEP20 wallet address (0x…)';
 
 $('withdrawBtn').onclick=async()=>{
- const btn=$('withdrawBtn'),msg=$('withdrawStatus');
- if(btn.disabled)return;
- msg.textContent='';msg.className='status withdraw-status error';
+ const button=$('withdrawBtn');
+ const message=$('withdrawStatus');
+
+ if(button.disabled)return;
+
+ message.textContent='';
+ message.className='status withdraw-status error';
+
  try{
   const raw=$('amount').value.trim();
-  if(!raw)throw Error('Please enter the withdrawal amount.');
-  if(!/^\d+(\.\d{1,6})?$/.test(raw))throw Error('Enter a valid amount (up to 6 decimal places).');
-  const amount=Math.round(Number(raw)*1000000);
-  if(!Number.isSafeInteger(amount)||amount<=0)throw Error('Enter a valid withdrawal amount.');
-  if(amount>currentBalance)throw Error(`Insufficient balance. Your available balance is ${money(currentBalance)} USDT.`);
-  if(amount<1000000)throw Error('Minimum withdrawal is $1.00 USDT.');
 
-  const details=$('details').value.replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/[\s\u00A0]+/g,'').trim();
+  if(!raw)throw Error('Please enter the withdrawal amount.');
+  if(!/^\d+(\.\d{1,6})?$/.test(raw)){
+   throw Error('Enter a valid amount (up to 6 decimal places).');
+  }
+
+  const amount=Math.round(Number(raw)*1000000);
+
+  if(!Number.isSafeInteger(amount)||amount<=0){
+   throw Error('Enter a valid withdrawal amount.');
+  }
+  if(amount>currentBalance){
+   throw Error(`Insufficient balance. Your available balance is ${money(currentBalance)} USDT.`);
+  }
+  if(amount<1000000){
+   throw Error('Minimum withdrawal is $1.00 USDT.');
+  }
+
+  const details=$('details').value
+   .replace(/[\u200B-\u200D\uFEFF]/g,'')
+   .replace(/[\s\u00A0]+/g,'')
+   .trim();
+
   if(!/^0x[a-fA-F0-9]{40}$/.test(details)){
    throw Error('Invalid BEP20 address. Enter a valid 42-character address beginning with 0x.');
   }
 
-  btn.disabled=true;btn.textContent='SUBMITTING…';
-  msg.className='status withdraw-status';
-  msg.textContent='Sending your withdrawal request…';
+  button.disabled=true;
+  button.textContent='SUBMITTING…';
+  message.className='status withdraw-status';
+  message.textContent='Sending your withdrawal request…';
 
   const result=await api('/api/withdraw',{
    amount,
@@ -442,88 +464,131 @@ $('withdrawBtn').onclick=async()=>{
    details
   });
 
-  msg.textContent='';
-  $('withdrawSuccessDetail').textContent=`${money(amount)} · USDT BEP20${result.withdrawal_id?' · ID '+result.withdrawal_id:''}`;
+  message.textContent='';
+  $('withdrawSuccessDetail').textContent=
+   `${money(amount)} · USDT BEP20${result.withdrawal_id?' · ID '+result.withdrawal_id:''}`;
+
   $('withdrawSuccess').classList.add('show');
-  $('amount').value='';$('details').value='';
+  $('amount').value='';
+  $('details').value='';
+
   await Promise.allSettled([loadAccount(),loadHistory()]);
- }catch(e){
-  msg.textContent=e.message||'Could not submit withdrawal. Please try again.';
+ }catch(error){
+  message.textContent=error.message||'Could not submit withdrawal. Please try again.';
  }finally{
-  btn.disabled=false;btn.textContent='↗  SUBMIT WITHDRAWAL';
+  button.disabled=false;
+  button.textContent='↗  SUBMIT WITHDRAWAL';
  }
 };
 
 async function loadHistory(){
- const r=await api('/api/withdrawals');
- $('history').innerHTML='';
- if(!r.withdrawals.length){
-  $('history').textContent='No withdrawals yet.';
+ const result=await api('/api/withdrawals');
+ const history=$('history');
+ history.innerHTML='';
+
+ const withdrawals=result.withdrawals||[];
+
+ if(!withdrawals.length){
+  history.textContent='No withdrawals yet.';
   return;
  }
- for(const x of r.withdrawals){
-  const d=document.createElement('div');
-  d.className='history-item';
-  d.textContent=`${money(x.amount)} USDT · ${x.payment_method} · ${x.status}`;
-  $('history').appendChild(d);
- }
+
+ withdrawals.forEach(item=>{
+  const row=document.createElement('div');
+  row.className='history-item';
+  row.textContent=
+   `${money(item.amount)} USDT · ${item.payment_method} · ${item.status}`;
+  history.appendChild(row);
+ });
 }
 
-['amount','details'].forEach(id=>$(id).addEventListener('input',()=>{
- const m=$('withdrawStatus');
- m.textContent='';m.className='status withdraw-status';
-}));
+['amount','details'].forEach(id=>{
+ $(id).addEventListener('input',()=>{
+  const message=$('withdrawStatus');
+  message.textContent='';
+  message.className='status withdraw-status';
+ });
+});
 
-$('closeWithdrawSuccess').onclick=()=>$('withdrawSuccess').classList.remove('show');
-$('withdrawSuccess').onclick=e=>{
- if(e.target===$('withdrawSuccess'))$('withdrawSuccess').classList.remove('show');
+$('closeWithdrawSuccess').onclick=()=>{
+ $('withdrawSuccess').classList.remove('show');
 };
+
+$('withdrawSuccess').onclick=event=>{
+ if(event.target===$('withdrawSuccess')){
+  $('withdrawSuccess').classList.remove('show');
+ }
+};
+
 $('historyBtn').onclick=async()=>{
- try{await loadHistory()}catch(e){status(e.message)}
+ try{
+  await loadHistory();
+  status('Withdrawal history updated.');
+ }catch(error){
+  status(error.message);
+ }
 };
 
 function getReferralLink(){
- const id=tg?.initDataUnsafe?.user?.id;
- return cfg.bot_username&&id?`https://t.me/${cfg.bot_username}?start=ref_${id}`:'';
+ const userId=tg?.initDataUnsafe?.user?.id;
+ if(!cfg.bot_username||!userId)return '';
+ return `https://t.me/${cfg.bot_username}?start=ref_${userId}`;
 }
 
 async function copyReferral(){
  const link=getReferralLink();
+
  if(!link){
   status('Referral link is not ready. Reopen AdsEarn from your Telegram bot.');
   return;
  }
+
  $('refLink').value=link;
+
  try{
   await navigator.clipboard.writeText(link);
   status('Referral link copied!');
  }catch{
-  $('refLink').focus();$('refLink').select();
-  try{document.execCommand('copy');status('Referral link copied!')}
-  catch{status('Select and copy your referral link above.')}
+  $('refLink').focus();
+  $('refLink').select();
+
+  try{
+   document.execCommand('copy');
+   status('Referral link copied!');
+  }catch{
+   status('Select and copy your referral link above.');
+  }
  }
 }
 
 $('copyRefBtn').onclick=copyReferral;
+
 $('refBtn').onclick=()=>{
  const link=getReferralLink();
+
  if(!link){
   status('Referral link is not ready. Reopen AdsEarn from your Telegram bot.');
   return;
  }
+
  $('refLink').value=link;
- const share=`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join AdsEarn and earn USDT!')}`;
- if(tg?.openTelegramLink)tg.openTelegramLink(share);
- else window.open(share,'_blank');
+
+ const shareUrl=
+  `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join AdsEarn!')}`;
+
+ if(tg?.openTelegramLink)tg.openTelegramLink(shareUrl);
+ else window.open(shareUrl,'_blank');
 };
 
 function renderReferralUsers(users){
  const list=$('referralList');
  list.innerHTML='';
+
  if(!Array.isArray(users)||users.length===0){
   list.innerHTML='<div class="ref-empty">No invited friends yet. Share your referral link to invite friends!</div>';
   return;
  }
+
  users.forEach(user=>{
   const row=document.createElement('div');
   row.className='ref-user';
@@ -531,12 +596,12 @@ function renderReferralUsers(users){
   const name=document.createElement('div');
   name.className='ref-user-name';
   name.textContent=user.username
-   ? '@'+String(user.username).replace(/^@/,'')
-   : (user.first_name||'AdsEarn member');
+   ?'@'+String(user.username).replace(/^@/,'')
+   :(user.first_name||'AdsEarn member');
 
   const earned=document.createElement('div');
   earned.className='ref-user-earned';
-  earned.textContent=money(user.commission_earned||user.amount||0);
+  earned.textContent=money(user.commission||0);
 
   row.append(name,earned);
   list.appendChild(row);
@@ -545,45 +610,43 @@ function renderReferralUsers(users){
 
 async function loadReferralStats(){
  $('refLink').value=getReferralLink();
- $('referralList').innerHTML='<div class="ref-empty">Loading referral information…</div>';
+ $('referralList').innerHTML=
+  '<div class="ref-empty">Loading referral information…</div>';
 
- const r=await api('/api/referrals');
+ const result=await api('/api/referrals');
 
- $('totalReferrals').textContent=Number(r.total_referrals||0);
- $('referralEarnings').textContent=money(r.referral_earnings||0);
+ $('totalReferrals').textContent=Number(result.total_referrals||0);
+ $('referralEarnings').textContent=money(result.referral_earnings||0);
 
- if(r.referral_link&&!$('refLink').value){
-  $('refLink').value=r.referral_link;
+ if(result.referral_link&&!$('refLink').value){
+  $('refLink').value=result.referral_link;
  }
 
- renderReferralUsers(r.referrals||[]);
+ renderReferralUsers(result.referrals||[]);
 }
 
 $('refreshRefBtn').onclick=async()=>{
- const btn=$('refreshRefBtn');
- btn.disabled=true;btn.textContent='LOADING…';
+ const button=$('refreshRefBtn');
+ button.disabled=true;
+ button.textContent='LOADING…';
+
  try{
   await loadReferralStats();
   status('Referral information updated.');
- }catch(e){
+ }catch(error){
   $('referralList').innerHTML='';
-  const err=document.createElement('div');
-  err.className='ref-empty';
-  err.textContent=e.message||'Could not load referral information.';
-  $('referralList').appendChild(err);
-  status(e.message);
+  const item=document.createElement('div');
+  item.className='ref-empty';
+  item.textContent=error.message||'Could not load referral information.';
+  $('referralList').appendChild(item);
+  status(error.message);
  }finally{
-  btn.disabled=false;btn.textContent='↻  REFRESH REFERRALS';
+  button.disabled=false;
+  button.textContent='↻  REFRESH REFERRALS';
  }
 };
 
 start();
-setInterval(renderCountdown,1000);
-setInterval(()=>{
- if(tg&&initData){
-  loadAdsStatus().catch(()=>{});
- }
-},30000);
 </script>
 </body>
 </html>
