@@ -35,8 +35,11 @@ const monetag = {
   zoneId: process.env.MONETAG_ZONE_ID || '12354877',
   secret: process.env.MONETAG_POSTBACK_SECRET || '',
   reward: 10,
-  dailyLimit: 5
+  dailyLimit: 5,
+  enabled: process.env.MONETAG_ENABLED === 'true'
 };
+
+const adsEnabled = monetag.enabled && Boolean(monetag.secret);
 
 if (!Number.isSafeInteger(cfg.adminId) || cfg.adminId <= 0) {
   throw new Error('ADMIN_ID must be your numeric Telegram user ID');
@@ -110,11 +113,7 @@ function verifyTelegramInitData(initData) {
   const authDate = Number(params.get('auth_date'));
   const now = Math.floor(Date.now() / 1000);
 
-  if (
-    !authDate ||
-    authDate > now + 60 ||
-    now - authDate > 3600
-  ) {
+  if (!authDate || authDate > now + 60 || now - authDate > 3600) {
     return null;
   }
 
@@ -136,10 +135,7 @@ function verifyTelegramInitData(initData) {
   const a = Buffer.from(calculatedHash, 'hex');
   const b = Buffer.from(hash, 'hex');
 
-  if (
-    a.length !== b.length ||
-    !crypto.timingSafeEqual(a, b)
-  ) {
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     return null;
   }
 
@@ -296,12 +292,54 @@ async function saveUser(user, referralId = null) {
 // ---------------- AD PROVIDERS ----------------
 
 const adProviders = [
-  { id: 'monetag', enabled: false, configured: false },
+  { id: 'monetag', enabled: adsEnabled, configured: Boolean(monetag.secret) },
   { id: 'adsterra', enabled: false, configured: false },
   { id: 'propellerads', enabled: false, configured: false },
   { id: 'ad-maven', enabled: false, configured: false },
   { id: 'hilltopads', enabled: false, configured: false }
 ];
+
+// ---------------- MONETAG SESSION ----------------
+
+// The Telegram user identity comes from verified Mini App initData.
+// The browser never chooses the Telegram ID for a rewarded session.
+
+app.post('/api/monetag/session', requireMiniApp, async (req, res) => {
+  try {
+    if (!adsEnabled) {
+      return res.status(503).json({
+        error: 'Rewarded ads are currently disabled.'
+      });
+    }
+
+    const telegramId = Number(req.telegramUser.id);
+    const ymid = `anv_${crypto.randomBytes(24).toString('hex')}`;
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    const { error } = await supabase
+      .from('monetag_ad_sessions')
+      .insert({
+        ymid,
+        telegram_id: telegramId,
+        zone_id: monetag.zoneId,
+        expires_at: expiresAt
+      });
+
+    if (error) throw error;
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      ok: true,
+      ymid,
+      expires_at: expiresAt
+    });
+  } catch (error) {
+    console.error('Monetag session creation error:', error);
+    return res.status(500).json({
+      error: 'Could not prepare a secure ad session.'
+    });
+  }
+});
 
 // ---------------- MONETAG VERIFIED POSTBACK ----------------
 
@@ -323,7 +361,6 @@ app.get('/api/monetag/postback', async (req, res) => {
 
     const {
       ymid,
-      telegram_id,
       zone_id,
       sub_zone_id,
       event_type,
@@ -335,8 +372,7 @@ app.get('/api/monetag/postback', async (req, res) => {
       String(zone_id || '') !== monetag.zoneId ||
       String(event_type || '') !== 'impression' ||
       String(reward_event_type || '') !== 'valued' ||
-      !/^\d{1,20}$/.test(String(telegram_id || '')) ||
-      !/^[A-Za-z0-9_.-]{1,150}$/.test(String(ymid || ''))
+      !/^anv_[a-f0-9]{48}$/.test(String(ymid || ''))
     ) {
       return res.status(200).send('IGNORED');
     }
@@ -344,14 +380,35 @@ app.get('/api/monetag/postback', async (req, res) => {
     const price = Number(estimated_price || 0);
 
     if (!Number.isFinite(price) || price < 0) {
-      return res.sendStatus(400);
+      return res.status(200).send('INVALID_PRICE');
+    }
+
+    // Resolve Telegram ID from our own session table.
+    // Never trust the telegram_id supplied by the ad provider callback.
+    const { data: session, error: sessionError } = await supabase
+      .from('monetag_ad_sessions')
+      .select('telegram_id')
+      .eq('ymid', String(ymid))
+      .eq('zone_id', monetag.zoneId)
+      .gt('expires_at', new Date().toISOString())
+      .is('consumed_at', null)
+      .maybeSingle();
+
+    if (sessionError) {
+      console.error('Monetag session lookup error:', sessionError);
+      return res.sendStatus(500);
+    }
+
+    if (!session?.telegram_id) {
+      console.warn('Monetag postback ignored: invalid or expired session');
+      return res.status(200).send('INVALID_SESSION');
     }
 
     const { data, error } = await supabase.rpc(
       'anv_credit_monetag_reward',
       {
         p_ymid: String(ymid),
-        p_telegram_id: String(telegram_id),
+        p_telegram_id: String(session.telegram_id),
         p_zone_id: String(zone_id),
         p_sub_zone_id: String(sub_zone_id || ''),
         p_event_type: String(event_type),
@@ -409,7 +466,7 @@ app.get('/api/config', async (req, res) => {
       bot_username: botUsername,
       referral_rate: cfg.referralRate,
       withdrawal_method: 'USDT (BNB Smart Chain BEP20)',
-      ads_enabled: false,
+      ads_enabled: adsEnabled,
       ad_networks: adProviders,
       anv_enabled: true,
       anv_mining_reward: miningReward,
@@ -429,18 +486,59 @@ app.get('/api/config', async (req, res) => {
 
 // ---------------- ADS STATUS ----------------
 
-app.get('/api/ads/status', requireMiniApp, (req, res) => {
-  res.set('Cache-Control', 'no-store');
+app.get('/api/ads/status', requireMiniApp, async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
 
-  res.json({
-    enabled: false,
-    watched: 0,
-    daily_limit: monetag.dailyLimit,
-    remaining: 0,
-    next_reset_at: null,
-    earned_24h: 0,
-    message: 'Ads are currently unavailable.'
-  });
+    if (!adsEnabled) {
+      return res.json({
+        enabled: false,
+        watched: 0,
+        daily_limit: monetag.dailyLimit,
+        remaining: 0,
+        next_reset_at: null,
+        earned_24h: 0,
+        message: 'Ads are currently unavailable.'
+      });
+    }
+
+    const now = new Date();
+    const dayStart = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate()
+    ));
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const { count, error } = await supabase
+      .from('monetag_reward_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('telegram_id', req.telegramUser.id)
+      .gte('created_at', dayStart.toISOString())
+      .lt('created_at', dayEnd.toISOString());
+
+    if (error) throw error;
+
+    const watched = Number(count || 0);
+    const remaining = Math.max(0, monetag.dailyLimit - watched);
+
+    return res.json({
+      enabled: remaining > 0,
+      watched,
+      daily_limit: monetag.dailyLimit,
+      remaining,
+      next_reset_at: dayEnd.toISOString(),
+      earned_24h: watched * monetag.reward,
+      message: remaining > 0
+        ? 'Rewarded ads are available.'
+        : 'Daily rewarded ad limit reached.'
+    });
+  } catch (error) {
+    console.error('Ad status error:', error);
+    return res.status(500).json({
+      error: 'Could not load ad status'
+    });
+  }
 });
 
 app.all('/api/ad-webhook', (req, res) => {
