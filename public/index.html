@@ -424,16 +424,8 @@ async function joinGroup(){
  }catch(e){b.disabled=false;toast(e.message)}
 }
 
-/* Monetag rewarded-ad integration.
-   ANV is never credited in the browser.
-   The backend postback is the only reward authority. */
-
-function makeYmid(){
- if(window.crypto?.randomUUID){
-  return 'anv_'+crypto.randomUUID().replace(/-/g,'');
- }
- return 'anv_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,14);
-}
+/* Monetag: the server creates and owns each ymid session.
+   Only the verified Monetag postback can credit ANV. */
 
 function renderAdStatus(){
  const b=document.getElementById('watchAdButton');
@@ -447,11 +439,14 @@ function renderAdStatus(){
 
  if(!enabled){
   b.disabled=true;
-  b.textContent='COMING SOON';
-  note.textContent='Rewarded ads are currently unavailable. They will activate after provider approval and secure server verification.';
-  description.textContent='Watch a video ad and earn ANV points · Max '+limit+' verified ads/day';
+  b.textContent=remaining<=0&&adsStatus.watched>=limit?'DAILY LIMIT REACHED':'COMING SOON';
+  note.textContent=adsStatus.watched>=limit
+   ?'You have used all '+limit+' verified ad rewards for today. Come back tomorrow.'
+   :'Rewarded ads are currently unavailable. They will activate after provider approval and secure server verification.';
+  description.textContent='Watch a video ad and earn 10 ANV points · Max '+limit+' verified ads/day';
   return;
  }
+
  if(remaining<=0){
   b.disabled=true;
   b.textContent='DAILY LIMIT REACHED';
@@ -468,14 +463,15 @@ async function loadAdStatus(){
  try{
   const r=await api('/api/ads/status');
   const limit=Number(r.daily_limit||5);
-  const watched=Number(r.watched_today||r.completed_today||0);
+  const watched=Number(r.watched||r.watched_today||r.completed_today||0);
   adsStatus={
    enabled:r.enabled===true,
+   watched,
    daily_limit:limit,
    remaining:Number.isFinite(Number(r.remaining))?Number(r.remaining):Math.max(0,limit-watched)
   };
  }catch(e){
-  adsStatus={enabled:false,daily_limit:5,remaining:0};
+  adsStatus={enabled:false,watched:0,daily_limit:5,remaining:0};
   console.warn('Ad status unavailable:',e);
  }
  renderAdStatus();
@@ -497,27 +493,37 @@ async function watchRewardedAd(){
  }
 
  const button=document.getElementById('watchAdButton');
- const ymid=makeYmid();
  adShowing=true;
  renderAdStatus();
 
  try{
+  // Obtain a server-generated session bound to the authenticated Telegram user.
+  const session=await api('/api/monetag/session',{
+   method:'POST',
+   body:'{}'
+  });
+
+  if(!session?.ok||!session?.ymid){
+   throw new Error('Could not prepare a secure ad session.');
+  }
+
   const result=await window.show_12354877({
-   ymid:ymid,
+   ymid:session.ymid,
    requestVar:'watch_ad'
   });
 
   if(result?.reward_event_type==='valued'){
    toast('Ad completed. Waiting for secure ANV reward verification.');
   }else{
-   toast('Ad closed or not eligible for reward. No ANV was added.');
+   toast('Ad closed. Reward will be added only if Monetag verifies it.');
   }
 
-  // Refresh status after the ad. The server postback may arrive later.
-  setTimeout(()=>loadAdStatus(),2500);
+  // Postbacks can arrive after the SDK closes.
+  setTimeout(()=>loadAdStatus(),3000);
+  setTimeout(()=>loadAll(),8000);
  }catch(e){
   console.error('Monetag error:',e);
-  toast('The ad could not be completed. Please try again later.');
+  toast(e.message||'The ad could not be completed. Please try again later.');
  }finally{
   adShowing=false;
   renderAdStatus();
