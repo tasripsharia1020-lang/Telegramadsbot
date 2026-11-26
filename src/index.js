@@ -25,14 +25,9 @@ const cfg = {
   appUrl: process.env.APP_URL.replace(/\/$/, ''),
   targetChatId: process.env.TARGET_CHAT_ID || '@adseearn',
   targetChatUrl: process.env.TARGET_CHAT_URL || 'https://t.me/adseearn',
-  dailyLimit: 500,
-  adReward: 5000,
-  adsgramBlockId: process.env.ADSGRAM_BLOCK_ID || '61753',
-  adsgramRewardSecret: process.env.ADSGRAM_REWARD_SECRET || '',
   minimumWithdrawal: 1000000,
   joinReward: 50000,
   referralRate: 10,
-  adSecret: process.env.AD_PROVIDER_WEBHOOK_SECRET || '',
   port: Number(process.env.PORT || 3000)
 };
 
@@ -47,10 +42,48 @@ const supabase = createClient(
 );
 
 const bot = new Telegraf(cfg.botToken);
-let botUsername = '';
 const app = express();
+let botUsername = '';
+
+const allowedOrigins = new Set([
+  'https://telegramadsbot.tasripsharia1030.workers.dev',
+  'https://telegramadsbot-0oan.onrender.com'
+]);
+
+// CORS must run before JSON, static files and API routes.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin) {
+    if (!allowedOrigins.has(origin)) {
+      return res.status(403).json({ error: 'Origin not allowed' });
+    }
+
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, OPTIONS'
+  );
+
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, X-Telegram-Init-Data'
+  );
+
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  next();
+});
 
 app.use(express.json({
+  limit: '100kb',
   verify: (req, res, buffer) => {
     req.rawBody = buffer;
   }
@@ -64,7 +97,7 @@ function verifyTelegramInitData(initData) {
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
 
-  if (!hash) return null;
+  if (!hash || !/^[a-f0-9]{64}$/i.test(hash)) return null;
 
   params.delete('hash');
 
@@ -106,9 +139,7 @@ function verifyTelegramInitData(initData) {
 
   try {
     const user = JSON.parse(params.get('user') || '{}');
-
     if (!user.id) return null;
-
     return user;
   } catch {
     return null;
@@ -168,6 +199,15 @@ function validBep20Address(address) {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
 }
 
+// Future provider registry. No provider is enabled or connected.
+const adProviders = [
+  { id: 'monetag', enabled: false, configured: false },
+  { id: 'adsterra', enabled: false, configured: false },
+  { id: 'propellerads', enabled: false, configured: false },
+  { id: 'ad-maven', enabled: false, configured: false },
+  { id: 'hilltopads', enabled: false, configured: false }
+];
+
 app.get('/health', (req, res) => {
   res.json({
     ok: true,
@@ -179,98 +219,38 @@ app.get('/api/config', (req, res) => {
   res.set('Cache-Control', 'no-store');
 
   res.json({
-    daily_limit: cfg.dailyLimit,
     minimum_withdrawal: cfg.minimumWithdrawal,
-    ad_reward: cfg.adReward,
     join_reward: cfg.joinReward,
     group_url: cfg.targetChatUrl,
-    adsgram_block_id: cfg.adsgramBlockId,
     bot_username: botUsername,
     referral_rate: cfg.referralRate,
-    withdrawal_method: 'USDT (BNB Smart Chain BEP20)'
+    withdrawal_method: 'USDT (BNB Smart Chain BEP20)',
+    ads_enabled: false,
+    ad_networks: adProviders
   });
 });
 
-// AdsGram reward callback
-app.get('/api/adsgram/reward', async (req, res) => {
-  try {
-    const supplied = Buffer.from(
-      String(req.query.secret || '')
-    );
+// Ads remain unavailable until a provider-specific,
+// verified server-side integration is installed.
+app.get('/api/ads/status', requireMiniApp, (req, res) => {
+  res.set('Cache-Control', 'no-store');
 
-    const expected = Buffer.from(
-      cfg.adsgramRewardSecret
-    );
-
-    if (
-      !expected.length ||
-      supplied.length !== expected.length ||
-      !crypto.timingSafeEqual(supplied, expected)
-    ) {
-      return res.status(401).send('Unauthorized');
-    }
-
-    const telegramId = String(
-      req.query.userid || req.query.userId || ''
-    );
-
-    if (!/^\d{1,20}$/.test(telegramId)) {
-      return res.status(400).send('Invalid user');
-    }
-
-    const { data, error } = await supabase.rpc(
-      'credit_adsgram_reward',
-      {
-        p_telegram_id: telegramId,
-        p_reward: cfg.adReward,
-        p_daily_limit: cfg.dailyLimit
-      }
-    );
-
-    if (error) throw error;
-
-    if (!data || data.ok !== true) {
-      return res.status(409).send(
-        data?.reason || 'Reward not credited'
-      );
-    }
-
-    return res.status(200).send('OK');
-
-  } catch (error) {
-    console.error('AdsGram reward callback error:', error);
-    return res.status(500).send('Reward processing failed');
-  }
+  res.json({
+    enabled: false,
+    watched: 0,
+    daily_limit: 500,
+    remaining: 0,
+    next_reset_at: null,
+    earned_24h: 0,
+    message: 'Ads are currently unavailable.'
+  });
 });
 
-app.get('/api/ads/status', requireMiniApp, async (req, res) => {
-  try {
-    const { data, error } = await supabase.rpc(
-      'get_adsgram_status',
-      {
-        p_telegram_id: String(req.telegramUser.id),
-        p_daily_limit: cfg.dailyLimit
-      }
-    );
-
-    if (error) throw error;
-
-    const watched = Number(data?.watched || 0);
-
-    res.json({
-      watched,
-      daily_limit: cfg.dailyLimit,
-      remaining: Math.max(0, cfg.dailyLimit - watched),
-      next_reset_at: data?.next_reset_at || null,
-      earned_24h: Number(data?.earned_24h || 0)
-    });
-
-  } catch (error) {
-    console.error('Ads status error:', error);
-    res.status(503).json({
-      error: 'Ads reward SQL setup is required'
-    });
-  }
+// No generic webhook can credit rewards.
+app.all('/api/ad-webhook', (req, res) => {
+  res.status(503).json({
+    error: 'Ad rewards are disabled. No provider callback is active.'
+  });
 });
 
 app.post('/api/auth', requireMiniApp, async (req, res) => {
@@ -284,12 +264,9 @@ app.post('/api/auth', requireMiniApp, async (req, res) => {
         first_name: req.telegramUser.first_name || ''
       }
     });
-
   } catch (error) {
     console.error('Auth error:', error);
-    res.status(500).json({
-      error: 'Could not save user'
-    });
+    res.status(500).json({ error: 'Could not save user' });
   }
 });
 
@@ -303,22 +280,46 @@ app.get('/api/me', requireMiniApp, async (req, res) => {
     .maybeSingle();
 
   if (error) {
-    console.error(error);
+    console.error('Account error:', error);
     return res.status(500).json({
       error: 'Could not load account'
     });
   }
 
   if (!data) {
-    return res.status(404).json({
-      error: 'User not found'
-    });
+    return res.status(404).json({ error: 'User not found' });
   }
 
+  res.set('Cache-Control', 'no-store');
   res.json({ user: data });
 });
 
-// Referral statistics and referred user list
+// Persistent Group Join task status.
+app.get('/api/tasks/status', requireMiniApp, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('join_tasks')
+      .select('task_id')
+      .eq('telegram_id', req.telegramUser.id)
+      .eq('task_id', 'main_channel')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      claimed: Boolean(data),
+      task_id: 'main_channel'
+    });
+  } catch (error) {
+    console.error('Task status error:', error);
+    res.status(500).json({
+      error: 'Could not load task status'
+    });
+  }
+});
+
+// Referral statistics.
 app.get('/api/referrals', requireMiniApp, async (req, res) => {
   try {
     const telegramId = req.telegramUser.id;
@@ -346,28 +347,23 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
 
     for (const item of commissions || []) {
       const id = String(item.referred_telegram_id);
-      const previous = commissionMap.get(id) || 0;
-
       commissionMap.set(
         id,
-        previous + Number(item.amount || 0)
+        (commissionMap.get(id) || 0) + Number(item.amount || 0)
       );
     }
 
-    const totalCommission = (commissions || [])
-      .reduce(
-        (sum, item) => sum + Number(item.amount || 0),
-        0
-      );
+    const totalCommission = (commissions || []).reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    );
 
     const referrals = (referredUsers || []).map(user => ({
       telegram_id: user.telegram_id,
       username: user.username,
       first_name: user.first_name,
       joined_at: user.created_at,
-      commission: commissionMap.get(
-        String(user.telegram_id)
-      ) || 0
+      commission: commissionMap.get(String(user.telegram_id)) || 0
     }));
 
     res.set('Cache-Control', 'no-store');
@@ -381,7 +377,6 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
         : null,
       referrals
     });
-
   } catch (error) {
     console.error('Referral error:', error);
     res.status(500).json({
@@ -390,24 +385,15 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
   }
 });
 
+// One-time Group Join reward.
 app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
   try {
-    if (!cfg.targetChatId) {
-      return res.status(503).json({
-        error: 'Join task is not configured'
-      });
-    }
-
     const member = await bot.telegram.getChatMember(
       cfg.targetChatId,
       req.telegramUser.id
     );
 
-    const allowed = [
-      'member',
-      'administrator',
-      'creator'
-    ];
+    const allowed = ['member', 'administrator', 'creator'];
 
     if (!allowed.includes(member.status)) {
       return res.status(403).json({
@@ -426,30 +412,32 @@ app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
 
     if (error) throw error;
 
-    if (!data.ok) {
+    if (!data || data.ok !== true) {
       return res.status(409).json({
-        error: 'Task already completed'
+        error: 'Task already completed',
+        claimed: true
       });
     }
 
     res.json({
       ok: true,
+      claimed: true,
       reward: cfg.joinReward,
       reward_usdt: '0.05'
     });
-
   } catch (error) {
     console.error('Join task error:', error);
     res.status(500).json({
-      error: 'Could not verify membership'
+      error: 'Could not verify membership. Please try again.'
     });
   }
 });
 
-// USDT BEP20 withdrawal
+// USDT BEP20 withdrawal.
 app.post('/api/withdraw', requireMiniApp, async (req, res) => {
   try {
     const amount = Number(req.body.amount);
+
     const method = String(req.body.method || '')
       .trim()
       .toUpperCase()
@@ -466,10 +454,7 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
       });
     }
 
-    if (
-      !method.includes('USDT') ||
-      !method.includes('BEP20')
-    ) {
+    if (!method.includes('USDT') || !method.includes('BEP20')) {
       return res.status(400).json({
         error: 'Only USDT on BNB Smart Chain (BEP20) is supported.'
       });
@@ -507,7 +492,6 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
       });
     }
 
-    // Notify admin immediately after the withdrawal is created.
     const user = req.telegramUser;
     const amountUsdt = (amount / 1000000).toFixed(2);
 
@@ -529,25 +513,14 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
         adminMessage,
         Markup.inlineKeyboard([
           [
-            Markup.button.callback(
-              '✅ Approve',
-              `wd_approve_${data.id}`
-            ),
-            Markup.button.callback(
-              '❌ Reject + Refund',
-              `wd_reject_${data.id}`
-            )
+            Markup.button.callback('✅ Approve', `wd_approve_${data.id}`),
+            Markup.button.callback('❌ Reject + Refund', `wd_reject_${data.id}`)
           ]
         ])
       );
-
       adminNotified = true;
-
     } catch (notifyError) {
-      console.error(
-        'Admin withdrawal notification failed:',
-        notifyError
-      );
+      console.error('Admin notification failed:', notifyError);
     }
 
     res.json({
@@ -555,7 +528,6 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
       withdrawal_id: data.id,
       admin_notified: adminNotified
     });
-
   } catch (error) {
     console.error('Withdrawal error:', error);
     res.status(500).json({
@@ -575,83 +547,36 @@ app.get('/api/withdrawals', requireMiniApp, async (req, res) => {
     .limit(30);
 
   if (error) {
-    console.error(error);
+    console.error('Withdrawal history error:', error);
     return res.status(500).json({
       error: 'Could not load withdrawals'
     });
   }
 
-  res.json({
-    withdrawals: data || []
-  });
+  res.set('Cache-Control', 'no-store');
+  res.json({ withdrawals: data || [] });
 });
 
-// Disabled generic webhook
-app.post('/api/ad-webhook', async (req, res) => {
-  if (
-    process.env.AD_PROVIDER !== 'enabled' ||
-    !cfg.adSecret
-  ) {
-    return res.status(503).json({
-      error: 'Ad rewards are disabled'
-    });
-  }
-
-  const signature = req.headers['x-ad-signature'];
-
-  const expected = crypto
-    .createHmac('sha256', cfg.adSecret)
-    .update(req.rawBody || Buffer.alloc(0))
-    .digest('hex');
-
-  if (
-    typeof signature !== 'string' ||
-    !/^[a-f0-9]{64}$/i.test(signature) ||
-    !crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
-      Buffer.from(expected, 'hex')
-    )
-  ) {
-    return res.status(401).json({
-      error: 'Invalid signature'
-    });
-  }
-
-  return res.status(501).json({
-    error: 'Provider adapter not configured'
-  });
-});
-
-// Telegram bot commands
+// Telegram bot commands.
 bot.start(async (ctx) => {
   try {
     const payload = ctx.startPayload || '';
     const refMatch = payload.match(/^ref_(\d+)$/);
-    const referralId = refMatch
-      ? Number(refMatch[1])
-      : null;
+    const referralId = refMatch ? Number(refMatch[1]) : null;
 
     await saveUser(ctx.from, referralId);
 
-    const keyboard = Markup.inlineKeyboard([
-      [
-        Markup.button.webApp(
-          '🚀 Open Reward App',
-          cfg.appUrl
-        )
-      ]
-    ]);
-
     await ctx.reply(
       `Welcome ${ctx.from.first_name || 'friend'}!\n\nOpen the Reward App to view your balance, tasks and withdrawals.`,
-      keyboard
+      Markup.inlineKeyboard([
+        [
+          Markup.button.webApp('🚀 Open Reward App', cfg.appUrl)
+        ]
+      ])
     );
-
   } catch (error) {
     console.error('Start error:', error);
-    ctx.reply(
-      'Sorry, setup failed. Please try again later.'
-    );
+    ctx.reply('Sorry, setup failed. Please try again later.');
   }
 });
 
@@ -664,16 +589,12 @@ bot.command('menu', (ctx) => {
     'Open your Reward App:',
     Markup.inlineKeyboard([
       [
-        Markup.button.webApp(
-          '🚀 Open Reward App',
-          cfg.appUrl
-        )
+        Markup.button.webApp('🚀 Open Reward App', cfg.appUrl)
       ]
     ])
   );
 });
 
-// Admin command to list pending withdrawals if needed.
 bot.command('withdrawals', async (ctx) => {
   if (ctx.from.id !== cfg.adminId) {
     return ctx.reply('Not authorized.');
@@ -708,67 +629,51 @@ bot.command('withdrawals', async (ctx) => {
       `📌 Status: ${item.status.toUpperCase()}`,
       Markup.inlineKeyboard([
         [
-          Markup.button.callback(
-            '✅ Approve',
-            `wd_approve_${item.id}`
-          ),
-          Markup.button.callback(
-            '❌ Reject + Refund',
-            `wd_reject_${item.id}`
-          )
+          Markup.button.callback('✅ Approve', `wd_approve_${item.id}`),
+          Markup.button.callback('❌ Reject + Refund', `wd_reject_${item.id}`)
         ]
       ])
     );
   }
 });
 
-bot.action(
-  /^wd_(approve|reject)_([0-9a-f-]+)$/i,
-  async (ctx) => {
-    if (ctx.from.id !== cfg.adminId) {
-      return ctx.answerCbQuery(
-        'Not authorized',
-        { show_alert: true }
-      );
-    }
-
-    try {
-      const approve = ctx.match[1] === 'approve';
-      const id = ctx.match[2];
-
-      const { data, error } = await supabase.rpc(
-        'process_withdrawal',
-        {
-          p_id: id,
-          p_admin: cfg.adminId,
-          p_approve: approve,
-          p_authorized_admin: cfg.adminId
-        }
-      );
-
-      if (error) throw error;
-
-      if (!data.ok) {
-        return ctx.answerCbQuery(
-          data.reason || 'Could not process'
-        );
-      }
-
-      await ctx.editMessageText(
-        `Withdrawal ${approve ? 'approved' : 'rejected and refunded'}.\nID: ${id}`
-      );
-
-      await ctx.answerCbQuery('Done');
-
-    } catch (error) {
-      console.error('Admin action error:', error);
-      await ctx.answerCbQuery(
-        'Action failed',
-        { show_alert: true }
-      );
-    }
+bot.action(/^wd_(approve|reject)_([0-9a-f-]+)$/i, async (ctx) => {
+  if (ctx.from.id !== cfg.adminId) {
+    return ctx.answerCbQuery('Not authorized', { show_alert: true });
   }
-);
+
+  try {
+    const approve = ctx.match[1] === 'approve';
+    const id = ctx.match[2];
+
+    const { data, error } = await supabase.rpc(
+      'process_withdrawal',
+      {
+        p_id: id,
+        p_admin: cfg.adminId,
+        p_approve: approve,
+        p_authorized_admin: cfg.adminId
+      }
+    );
+
+    if (error) throw error;
+
+    if (!data || !data.ok) {
+      return ctx.answerCbQuery(
+        data?.reason || 'Could not process'
+      );
+    }
+
+    await ctx.editMessageText(
+      `Withdrawal ${approve ? 'approved' : 'rejected and refunded'}.\nID: ${id}`
+    );
+
+    await ctx.answerCbQuery('Done');
+  } catch (error) {
+    console.error('Admin action error:', error);
+    await ctx.answerCbQuery('Action failed', { show_alert: true });
+  }
+});
 
 bot.catch((error) => {
   console.error('Telegram bot error:', error);
@@ -788,7 +693,6 @@ const server = app.listen(cfg.port, () => {
     console.log(
       `Telegram bot started${botUsername ? ` as @${botUsername}` : ''}`
     );
-
   } catch (error) {
     console.error('Telegram bot launch failed:', error);
     process.exit(1);
