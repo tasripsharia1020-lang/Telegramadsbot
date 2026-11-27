@@ -139,51 +139,19 @@ button,input{font:inherit}button{cursor:pointer}
 .profile-details{margin-top:0}
 @media(max-width:370px){.profile-logo{width:76px;height:76px;font-size:44px;border-radius:22px}.profile-name{font-size:22px}.profile-hero{padding:12px 10px}}
 
-/* ===== Compact clean page layout; keep all existing actions and data bindings ===== */
-#tasks .task-banner{display:none}
-#tasks .tabs{padding-top:2px;padding-bottom:6px;margin-bottom:2px}
-#tasks .group-title{margin:9px 3px 5px}
-#tasks .task{padding:9px 10px;margin:6px 0;border-radius:16px}
-#tasks .taskicon{width:44px;height:44px;font-size:23px}
-#tasks .taskbody h3{font-size:13px;margin:0}
-#tasks .taskright{gap:5px;min-width:76px}
-#tasks .reward{font-size:15px}
-#tasks .taskright .action{padding:7px 10px;font-size:9px}
-#tasks .taskbody p{display:none}
-#mining .mining-panel{padding:17px 14px 15px}
-#mining .mining-panel .balance{font-size:30px;margin-top:8px}
-#mining .timer{margin:12px auto 7px;font-size:31px}
-#mining .progress-track{margin:10px 0 7px}
-#miningMessage{margin-top:12px;padding:9px 10px;font-size:11px}
-#mining .mining-action-wrap{margin-top:12px}
-#miningButton{min-height:46px}
-#wallet .section-title,#referral .section-title,#profile .section-title{margin-top:14px;margin-bottom:8px}
-#wallet .hero{padding:13px 14px}
-#wallet .grid .card{padding:10px}
-#wallet .grid .ico{font-size:22px;margin-bottom:2px}
-#wallet .grid .reward{margin-top:6px;font-size:14px}
-#wallet .card{padding:11px}
-#wallet label{display:block;margin:9px 0 5px}
-#wallet .action{margin-top:10px}
-#referral .card{padding:11px}
-#referral .grid{margin-top:9px!important}
-#referral .section-title:first-child{margin-top:7px}
-#referral #refList{font-size:11px}
-#profile .profile-hero{padding:13px 12px 12px}
-#profile .profile-logo{width:68px;height:68px;font-size:41px;border-radius:20px;margin:0 auto 7px}
-#profile .profile-name{font-size:21px}
-#profile .profile-support{margin-top:9px;min-height:43px}
-#profile .profile-about-title,#profile .profile-details-title{margin-top:11px}
-#profile .profile-about{padding:9px 11px;font-size:10px}
-#profile .profile-details .listitem{padding:8px 0}
-@media(max-height:760px){
- .app{padding-top:8px;padding-bottom:18px}
- .top{height:58px;margin-bottom:9px}
- #tasks .task{padding:7px 9px;margin:5px 0}
- #mining .mining-panel{padding:12px 11px}
- #mining .timer{font-size:28px;margin:8px auto 5px}
- #miningMessage{margin-top:8px}
- #profile .profile-logo{width:60px;height:60px;font-size:36px}
+/* Home screen: slightly larger ANV emblem and gently roomier sections. */
+#home .hero{padding:13px 13px;border-radius:23px}
+#home .coin{width:88px;height:88px;margin:9px auto 7px;font-size:29px;border-width:3px}
+#home .coin:before{inset:-9px -24px;border-width:2px}
+#home .section-title{font-size:16px;margin:12px 2px 8px}
+#home .card{padding:9px 10px}
+@media(max-height:820px){
+ #home .coin{width:80px;height:80px;margin:8px auto 6px;font-size:27px}
+ #home .hero{padding:12px 12px}
+}
+@media(max-height:740px){
+ #home .coin{width:76px;height:76px;margin:7px auto 5px;font-size:26px}
+ #home .hero{padding:11px 11px}
 }
 
 </style>
@@ -202,40 +170,43 @@ button,input{font:inherit}button{cursor:pointer}
 </section>
 
 <section class="page" id="tasks">
+ <div class="task-banner"><div class="banner-icon">🎁</div><div><div class="banner-title">Complete Tasks</div><div class="banner-sub">Earn ANV Coins</div></div><div style="margin-left:auto;font-size:25px">↗</div></div>
  <div class="tabs" id="taskTabs"><button class="active" data-filter="all" onclick="filterTasks('all',this)">✦ All</button><button data-filter="daily" onclick="filterTasks('daily',this)">🎁 Daily</button><button data-filter="social" onclick="filterTasks('social',this)">👥 Social</button><button data-filter="ads" onclick="filterTasks('ads',this)">▶ Watch Ads</button></div>
  <div class="group-title"><span>Daily Tasks</span><span id="dailyGroupReward">+2 ANV</span></div>
- <div class="task" data-category="daily"><div class="row"><div class="taskicon">🗓️</div><div class="taskbody"><h3>Daily Check-in</h3></div><div class="taskright"><div class="reward" id="dailyRewardLabel">+2 ANV</div><button class="action" id="dailyButton" onclick="claimDaily()">CLAIM</button></div></div></div>
+ <div class="task" data-category="daily"><div class="row"><div class="taskicon">🗓️</div><div class="taskbody"><h3>Daily Check-in</h3><p>Open ANV Verse every day to collect your reward</p></div><div class="taskright"><div class="reward" id="dailyRewardLabel">+2 ANV</div><button class="action" id="dailyButton" onclick="claimDaily()">CLAIM</button></div></div></div>
  <div class="group-title"><span>Social Tasks</span><span>+50 ANV</span></div>
- <div class="task" data-category="social"><div class="row"><div class="taskicon">✈️</div><div class="taskbody"><h3>Join Telegram Community</h3></div><div class="taskright"><div class="reward">+50 ANV</div><button class="action" id="joinButton" onclick="joinGroup()">START</button></div></div></div>
- <div class="task" data-category="ads"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#45209b,#17194d);border-color:#9b7bff">▶️</div><div class="taskbody"><h3>Watch Rewarded Ad</h3></div><div class="taskright"><div class="reward">+10 ANV</div><button class="action" id="watchAdButton" onclick="watchRewardedAd()" disabled>CHECKING...</button></div></div></div>
- <div class="task" data-category="ads"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#60400a,#34204b);border-color:#ffcf47">🪟</div><div class="taskbody"><h3>Popup Ad Task</h3></div><div class="taskright"><div class="reward">+5 ANV</div><button class="action secondary" disabled>COMING SOON</button></div></div></div>
+ <div class="task" data-category="social"><div class="row"><div class="taskicon">✈️</div><div class="taskbody"><h3>Join Telegram Community</h3><p>Join our official Telegram channel and verify membership</p></div><div class="taskright"><div class="reward">+50 ANV</div><button class="action" id="joinButton" onclick="joinGroup()">START</button></div></div></div>
+ <div class="task" data-category="ads"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#45209b,#17194d);border-color:#9b7bff">▶️</div><div class="taskbody"><h3>Watch Rewarded Ad</h3><p>Complete a rewarded video and earn ANV · Max 5 verified rewarded ads/day</p></div><div class="taskright"><div class="reward">+10 ANV</div><button class="action" id="watchAdButton" onclick="watchRewardedAd()" disabled>CHECKING...</button></div></div></div>
+ <div class="task" data-category="ads"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#60400a,#34204b);border-color:#ffcf47">🪟</div><div class="taskbody"><h3>Popup Ad Task</h3><p>Earn 5 ANV after a separately verified popup-ad task becomes available.</p></div><div class="taskright"><div class="reward">+5 ANV</div><button class="action secondary" disabled>COMING SOON</button></div></div></div>
  <div class="group-title"><span>Special Tasks</span><span>Earn more</span></div>
- <div class="task" data-category="social"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#60400a,#34204b);border-color:#ffcf47">⭐</div><div class="taskbody"><h3>Invite Friends</h3></div><div class="taskright"><div class="reward">+10 ANV</div><button class="action" onclick="showPage('referral')">INVITE</button></div></div></div>
+ <div class="task" data-category="social"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#60400a,#34204b);border-color:#ffcf47">⭐</div><div class="taskbody"><h3>Invite Friends</h3><p>Invite friends and earn when they become eligible</p></div><div class="taskright"><div class="reward">+10 ANV</div><button class="action" onclick="showPage('referral')">INVITE</button></div></div></div>
 </section>
 
 <section class="page" id="mining">
- <div class="hero center mining-panel"><div class="eyebrow">24-HOUR MINING</div><div class="balance" id="miningReward">10 ANV</div><div class="timer" id="miningTimer">READY</div><div class="progress-track"><div class="progress-fill" id="miningProgress"></div></div><div class="mining-stats"><span id="miningProgressLabel">0% complete</span><span>24 hours</span></div><div class="muted" id="miningMessage">Start mining.</div><div class="mining-action-wrap"><button class="action" id="miningButton" onclick="miningAction()">START MINING</button></div></div>
+ <div class="section-title">⛏ ANV Coin Mining</div><div class="hero center"><div class="eyebrow">24-HOUR MINING CYCLE</div><div class="coin">ANV</div><div class="balance" id="miningReward">10 ANV</div><div class="coinlabel">Reward per completed cycle</div><div class="timer" id="miningTimer">READY</div><div class="progress-track"><div class="progress-fill" id="miningProgress"></div></div><div class="mining-stats"><span id="miningProgressLabel">0% complete</span><span>24 hours</span></div><div class="muted" id="miningMessage">Start your mining session to begin.</div><div style="margin-top:20px"><button class="action" id="miningButton" onclick="miningAction()">START MINING</button></div></div>
 </section>
 
 <section class="page" id="wallet">
  <div class="section-title">My Wallet</div><div class="hero"><div class="eyebrow">YOUR ANV BALANCE</div><div class="balance" id="walletBalance">0 ANV</div><div class="coinlabel">Your ANV balance</div></div>
- <div class="grid" style="margin-top:12px"><div class="card center"><div class="ico">🔄</div><b>ANV COIN SWAP</b><div class="reward">COMING SOON</div></div><div class="card center"><div class="ico">💎</div><b>ANV WITHDRAW</b><div class="reward">COMING SOON</div></div></div>
- <div class="section-title">ANV VERSE USDT Wallet</div><div class="card"><small>YOUR USDT BALANCE</small><strong id="usdtBalance">$0.000000</strong><label class="muted">Amount (USDT)</label><input class="input" id="withdrawAmount" type="number" min="1" step="0.01" placeholder="Minimum 1 USDT"><label class="muted">BEP20 wallet address</label><input class="input" id="withdrawAddress" placeholder="0x..."><button class="action" style="width:100%" onclick="withdrawUSDT()">SUBMIT USDT WITHDRAWAL</button></div>
+ <div class="grid" style="margin-top:12px"><div class="card center"><div class="ico">🔄</div><b>ANV COIN SWAP</b><div class="reward">COMING SOON</div><small>Swap is disabled until secure conversion and settlement are ready.</small></div><div class="card center"><div class="ico">💎</div><b>ANV WITHDRAW</b><div class="reward">COMING SOON</div><small>ANV remains an in-app points balance for now.</small></div></div>
+ <div class="section-title">ANV VERSE USDT Wallet</div><div class="card"><small>YOUR USDT BALANCE</small><strong id="usdtBalance">$0.000000</strong><p class="muted" style="font-size:10px;line-height:1.5">Your ANV VERSE USDT wallet. Existing USDT withdrawal rules remain unchanged.</p><label class="muted">Amount (USDT)</label><input class="input" id="withdrawAmount" type="number" min="1" step="0.01" placeholder="Minimum 1 USDT"><label class="muted">BEP20 wallet address</label><input class="input" id="withdrawAddress" placeholder="0x..."><button class="action" style="width:100%" onclick="withdrawUSDT()">SUBMIT USDT WITHDRAWAL</button></div>
  <div class="section-title">Withdrawal History</div><div class="card" id="withdrawHistory">Loading...</div>
 </section>
 
 <section class="page" id="referral">
+ <div class="task-banner"><div class="banner-icon">🎁</div><div><div class="banner-title">Invite Friends</div><div class="banner-sub">Earn More ANV!</div></div></div>
  <div class="section-title">Your Referral Link</div><div class="card"><input class="input" id="refLink" readonly placeholder="Loading referral link..."><button class="action" style="width:100%" onclick="copyReferral()">COPY INVITE LINK</button><button class="action secondary" style="width:100%;margin-top:8px" onclick="shareReferral()">SHARE WITH FRIENDS</button></div>
  <div class="grid" style="margin-top:12px"><div class="card"><small>Total Referrals</small><strong id="refTotal">0</strong></div><div class="card"><small>Referral Reward</small><strong id="refEarned">0 ANV</strong></div></div>
-<div class="section-title">Referral List</div><div class="card" id="refList">No referrals yet.</div>
+ <div class="section-title">Referral Benefits</div><div class="card"><div class="listitem">✅ Your friend joins ANV Verse</div><div class="listitem">✅ You earn the configured ANV reward for an eligible referral</div><div class="listitem">✅ Rewards are credited once by the server</div></div><div class="section-title">Referral List</div><div class="card" id="refList">No referrals yet.</div>
 </section>
 
 <section class="page" id="profile">
  <div class="section-title">My Profile</div>
- <div class="hero center profile-hero"><div class="profile-logo">A</div><div class="profile-name" id="profileName">Player</div></div>
+ <div class="hero center profile-hero"><div class="profile-logo">A</div><div class="profile-name" id="profileName">Player</div><div class="coinlabel">ANV VERSE MEMBER</div><div class="profile-badges"><span>✦ Member</span><span>⛏ Miner</span><span>◈ ANV Wallet</span></div></div>
  <button class="action profile-support" style="width:100%" onclick="contactSupport()">✉ CONTACT SUPPORT</button>
+ <div class="notice support-note">Need help? Contact our Telegram support team at @Vertusq. Your Telegram ID will be included in the message.</div>
  <div class="section-title profile-about-title">About ANV Verse</div>
- <div class="notice profile-about">Your ANV balance and rewards are managed in ANV VERSE.</div>
+ <div class="notice profile-about">ANV is your in-app rewards balance. Your balance, mining progress and eligible rewards are managed in ANV VERSE. Swap is not active.</div>
  <div class="section-title profile-details-title">Account Details</div>
  <div class="card profile-details"><div class="listitem row"><span class="muted">Telegram ID</span><b id="profileId">—</b></div><div class="listitem row"><span class="muted">ANV Balance</span><b id="profileBalance">0 ANV</b></div><div class="listitem row"><span class="muted">Total Earned</span><b id="profileEarned">0 ANV</b></div><div class="listitem row"><span class="muted">Mining Level</span><b id="profileLevel">Level 1</b></div></div>
 </section>
@@ -304,7 +275,36 @@ async function loadDailyStatus(){try{const r=await api('/api/anv/daily/status');
 async function claimDaily(){const b=document.getElementById('dailyButton');b.disabled=true;try{const r=await api('/api/anv/daily/claim',{method:'POST',body:'{}'});toast('Daily reward: '+fmt(r.reward)+' ANV');b.textContent='✓ CLAIMED';b.classList.add('green');await loadAll()}catch(e){if(/already claimed/i.test(e.message)){b.textContent='✓ CLAIMED';b.classList.add('green')}else b.disabled=false;toast(e.message)}}
 async function loadJoinStatus(){try{const r=await api('/api/tasks/status'),b=document.getElementById('joinButton');if(r.claimed){b.textContent='✓ CLAIMED';b.disabled=true;b.classList.add('green')}}catch(e){console.error(e)}}
 async function joinGroup(){const b=document.getElementById('joinButton');try{if(!joinOpened){const c=await api('/api/config');if(!c.group_url)throw new Error('Telegram group link is not configured.');if(tg)tg.openTelegramLink(c.group_url);else window.open(c.group_url,'_blank');joinOpened=true;b.textContent='VERIFY & CLAIM';toast('Join the group, return here and tap Verify & Claim.');return}b.disabled=true;const r=await api('/api/tasks/join',{method:'POST',body:'{}'});if(r.ok){b.textContent='✓ CLAIMED';b.classList.add('green');toast('+'+fmt(r.reward||50)+' ANV group reward credited.');await loadAll()}else throw new Error(r.error||'Membership not verified')}catch(e){b.disabled=false;toast(e.message)}}
-async function loadReferrals(){try{const r=await api('/api/anv/referrals');document.getElementById('refCount').textContent=fmt(r.total_referrals);document.getElementById('refTotal').textContent=fmt(r.total_referrals);document.getElementById('refEarned').textContent=fmt(r.anv_earned)+' ANV';document.getElementById('refLink').value=r.referral_link||'Referral link unavailable';const l=document.getElementById('refList');if(!r.referrals?.length)l.textContent='No referrals yet. Invite friends to grow your network.';else l.innerHTML=r.referrals.map(u=>`<div class="listitem"><b>${escapeHTML(u.first_name||u.username||'Telegram user')}</b><div class="muted">Joined ${new Date(u.joined_at).toLocaleDateString()}</div></div>`).join('')}catch(e){console.error(e)}}
+function getTelegramUserId(){return tg?.initDataUnsafe?.user?.id||legacyUser?.telegram_id||account?.telegram_id||''}
+async function buildFallbackReferralLink(){
+ const userId=getTelegramUserId();
+ if(!userId)return '';
+ let username='Adeearnbot';
+ try{const config=await api('/api/config');if(config?.bot_username)username=String(config.bot_username).replace(/^@/,'')}catch(e){console.warn('Referral config fallback:',e)}
+ return `https://t.me/${username}?start=ref_${userId}`;
+}
+async function loadReferrals(){
+ const link=document.getElementById('refLink'),list=document.getElementById('refList');
+ if(!link||!list)return;
+ if(!link.value||link.value==='Referral link unavailable')link.value='Loading referral link...';
+ list.textContent='Loading referrals...';
+ try{
+  const r=await api('/api/anv/referrals');
+  const total=Number(r.total_referrals||0),earned=Number(r.anv_earned||0);
+  document.getElementById('refCount').textContent=fmt(total);
+  document.getElementById('refTotal').textContent=fmt(total);
+  document.getElementById('refEarned').textContent=fmt(earned)+' ANV';
+  link.value=r.referral_link||await buildFallbackReferralLink()||'Referral link unavailable';
+  const referrals=Array.isArray(r.referrals)?r.referrals:[];
+  if(!referrals.length)list.textContent='No referrals yet. Invite friends to grow your network.';
+  else list.innerHTML=referrals.map(u=>`<div class="listitem"><b>${escapeHTML(u.first_name||u.username||'Telegram user')}</b><div class="muted">Joined ${escapeHTML(safeDate(u.joined_at))}</div></div>`).join('');
+ }catch(e){
+  console.error('Referral loading failed:',e);
+  const fallback=await buildFallbackReferralLink();
+  link.value=fallback||'Referral link unavailable';
+  list.innerHTML='<div class="muted">Referral statistics could not load right now. Your invite link is shown above. Tap refresh to try again.</div><button class="action secondary" style="width:100%;margin-top:10px" onclick="loadReferrals()">↻ RETRY REFERRAL</button>';
+ }
+}
 async function copyReferral(){const v=document.getElementById('refLink').value;if(!v||v==='Referral link unavailable')return toast('Referral link is not ready.');try{await navigator.clipboard.writeText(v)}catch{const e=document.getElementById('refLink');e.select();document.execCommand('copy')}toast('Referral link copied!')}
 function shareReferral(){const v=document.getElementById('refLink').value;if(!v||v==='Referral link unavailable')return toast('Referral link is not ready.');const u='https://t.me/share/url?url='+encodeURIComponent(v)+'&text='+encodeURIComponent('Join me on ANV Verse');if(tg?.openTelegramLink)tg.openTelegramLink(u);else window.open(u,'_blank')}
 function contactSupport(){const userId=tg?.initDataUnsafe?.user?.id||legacyUser?.telegram_id||account?.telegram_id||'';const firstName=tg?.initDataUnsafe?.user?.first_name||legacyUser?.first_name||'ANV Verse user';const message='Hello ANV VERSE Support, I need help. Name: '+firstName+'. Telegram ID: '+(userId||'Not available')+'.';const url='https://t.me/Vertusq?text='+encodeURIComponent(message);if(tg?.openTelegramLink)tg.openTelegramLink(url);else window.open(url,'_blank','noopener,noreferrer')}
@@ -352,4 +352,4 @@ async function loadHistory(){const a=document.getElementById('anvHistoryList'),w
 (async()=>{try{await authenticate();const dailyAdTask=maybeShowDailyOpenAd();await loadAll();dailyAdTask.catch(e=>console.warn('Daily ad task failed:',e))}catch(e){console.error(e);if(initData)toast(e.message)}})();
 </script>
 </body>
- </html>
+                                                                                                                                                                                                                                                                                    </html>
