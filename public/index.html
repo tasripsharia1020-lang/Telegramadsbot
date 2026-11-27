@@ -12,16 +12,9 @@
 
 <style>
 :root{
- --bg:#020716;
- --panel:#061638;
- --panel2:#081f4a;
- --cyan:#20e8ff;
- --blue:#087dff;
- --violet:#a42cff;
- --gold:#ffdc42;
- --muted:#b8cce9;
- --line:#176dff;
- --green:#19f58a;
+ --bg:#020716;--panel:#061638;--panel2:#081f4a;--cyan:#20e8ff;
+ --blue:#087dff;--violet:#a42cff;--gold:#ffdc42;--muted:#b8cce9;
+ --line:#176dff;--green:#19f58a;
 }
 *{box-sizing:border-box}
 html{background:#020716;scroll-behavior:smooth}
@@ -312,7 +305,7 @@ button{cursor:pointer}
 .profile-sticker b{font-size:20px;font-weight:1000;letter-spacing:2px;color:#fff;text-shadow:0 0 12px #17dfff}
 .profile-sticker small{font-size:9px;letter-spacing:2px;color:#bcefff;font-weight:900}
 .profile-about{text-align:center;line-height:1.7}
-.profile-info{margin-top:5px;padding:5px 14px}
+.profile-info{margin-top:17px;padding:5px 14px;position:relative;z-index:1;text-align:left}
 .profile-info-row{
  display:flex;justify-content:space-between;align-items:center;gap:10px;
  padding:14px 2px;border-bottom:1px solid #24518a;font-size:12px;
@@ -322,9 +315,6 @@ button{cursor:pointer}
 .profile-info-row b{color:#fff;text-align:right;overflow-wrap:anywhere}
 .profile-active{color:#35efa1!important}
 .support-card{text-align:center;padding:20px 15px;margin-bottom:15px}
-.support-icon{font-size:42px;margin-bottom:8px;filter:drop-shadow(0 0 9px #20dfff)}
-.support-card>b{display:block;font-size:18px;color:#fff}
-.support-card p{color:#c7dcf5;font-size:12px;margin:8px 0 15px}
 
 @media(min-width:600px){
  .app{padding-top:18px}
@@ -408,7 +398,7 @@ button{cursor:pointer}
 
  <div class="task-banner home-invite" onclick="showPage('referral')" role="button" tabindex="0">
   <div class="banner-icon">🎁</div>
-  <div><div class="banner-title">Invite Friends</div><div class="banner-sub">Earn 10 ANV for every successful invite</div></div>
+  <div><div class="banner-title">Invite Friends</div><div class="banner-sub">Invite 1 friend = Earn 10 ANV</div></div>
   <div style="margin-left:auto;font-size:27px;color:#fff">❯</div>
  </div>
 
@@ -472,7 +462,7 @@ button{cursor:pointer}
  <div class="task" data-category="social">
   <div class="row">
    <div class="taskicon" style="background:linear-gradient(145deg,#60400a,#34204b);border-color:#ffcf47">⭐</div>
-   <div class="taskbody"><h3>Invite Friends</h3><p>Invite friends and earn when they become eligible</p></div>
+   <div class="taskbody"><h3>Invite Friends</h3><p>Invite a friend and earn 10 ANV when they become an eligible referral.</p></div>
    <div class="taskright"><div class="reward">+10 ANV</div><button class="action" onclick="showPage('referral')">INVITE</button></div>
   </div>
  </div>
@@ -533,8 +523,18 @@ button{cursor:pointer}
 <section class="page" id="referral">
  <div class="task-banner">
   <div class="banner-icon">🎁</div>
-  <div><div class="banner-title">Invite Friends</div><div class="banner-sub">Earn More ANV!</div></div>
+  <div>
+   <div class="banner-title">Invite Friends</div>
+   <div class="banner-sub">Invite 1 friend = Earn 10 ANV</div>
+  </div>
  </div>
+
+ <div class="card center" style="margin-bottom:12px;padding:17px">
+  <div class="muted">YOUR REWARD FOR EACH SUCCESSFUL INVITE</div>
+  <div style="font-size:32px;font-weight:1000;color:#ffe34f;text-shadow:0 0 12px #ffbd2c66;margin:7px 0">+10 ANV</div>
+  <div style="font-size:12px;color:#e4f3ff">Every eligible friend you invite earns you 10 ANV.</div>
+ </div>
+
  <div class="section-title">Your Referral Link</div>
  <div class="card">
   <input class="input" id="refLink" readonly placeholder="Loading referral link...">
@@ -545,17 +545,18 @@ button{cursor:pointer}
   <div class="card"><small>Total Referrals</small><strong id="refTotal">0</strong></div>
   <div class="card"><small>Referral Reward</small><strong id="refEarned">0 ANV</strong></div>
  </div>
- <div class="section-title">Referral Benefits</div>
+ <div class="section-title">How You Earn</div>
  <div class="card">
-  <div class="listitem">✅ Your friend joins ANV Verse</div>
-  <div class="listitem">✅ You earn the configured ANV reward for an eligible referral</div>
-  <div class="listitem">✅ Rewards are credited once by the server</div>
+  <div class="listitem">1. Share your invite link with friends.</div>
+  <div class="listitem">2. Your friend joins ANV VERSE using your link.</div>
+  <div class="listitem">3. When the referral becomes eligible, you receive <b style="color:#ffe34f">10 ANV</b>.</div>
+  <div class="listitem">4. Each eligible referral reward is credited once by the server.</div>
  </div>
  <div class="section-title">Referral List</div>
  <div class="card" id="refList">No referrals yet.</div>
 </section>
 
-<!-- PROFILE UPDATED -->
+<!-- PROFILE -->
 <section class="page" id="profile">
  <div class="section-title">My Profile</div>
 
@@ -569,32 +570,29 @@ button{cursor:pointer}
    <span>⛏ MINER</span>
    <span>💎 REWARDS</span>
   </div>
+
+  <div class="section-title" style="position:relative;z-index:1;text-align:left;margin-top:20px">Account Information</div>
+  <div class="card profile-info">
+   <div class="profile-info-row">
+    <span>👤 Telegram User ID</span>
+    <b id="profileTelegramId">Loading...</b>
+   </div>
+   <div class="profile-info-row">
+    <span>💎 Account</span>
+    <b>ANV VERSE Member</b>
+   </div>
+   <div class="profile-info-row">
+    <span>⚡ Status</span>
+    <b class="profile-active">● Active</b>
+   </div>
+  </div>
  </div>
 
- <!-- ACCOUNT INFORMATION MOVED UP -->
- <div class="section-title">Account Information</div>
- <div class="card profile-info">
-  <div class="profile-info-row">
-   <span>👤 Telegram User ID</span>
-   <b id="profileTelegramId">Loading...</b>
-  </div>
-  <div class="profile-info-row">
-   <span>💎 Account</span>
-   <b>ANV VERSE Member</b>
-  </div>
-  <div class="profile-info-row">
-   <span>⚡ Status</span>
-   <b class="profile-active">● Active</b>
-  </div>
- </div>
-
- <!-- ABOUT US -->
  <div class="section-title">About Us</div>
  <div class="notice profile-about">
   Welcome to ANV VERSE — Mine, complete tasks, invite friends and grow your ANV rewards.
  </div>
 
- <!-- SUPPORT -->
  <div class="section-title">Need Help?</div>
  <div class="card support-card">
   <div class="support-icon">🎧</div>
