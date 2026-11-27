@@ -313,33 +313,52 @@ linear-gradient(145deg,#1c3470,#171b42 60%,#241644)
  </div>
 </section>
 
+<!-- UPDATED WALLET SECTION -->
 <section class="page" id="wallet">
  <div class="section-title">My Wallet</div>
+
  <div class="hero">
   <div class="eyebrow">YOUR ANV BALANCE</div>
   <div class="balance" id="walletBalance">0 ANV</div>
   <div class="coinlabel">Your ANV Wallet Balance</div>
  </div>
+
  <div class="grid" style="margin-top:12px">
-  <div class="card center"><div class="ico">🔄</div><b>ANV COIN SWAP</b><div class="reward">COMING SOON</div><small>Swap feature is being prepared.</small></div>
-  <div class="card center"><div class="ico">💎</div><b>ANV WITHDRAW</b><div class="reward">COMING SOON</div><small>Withdrawal feature is being prepared.</small></div>
+  <div class="card center">
+   <div class="ico">🔄</div>
+   <b>ANV COIN SWAP</b>
+   <div class="reward">COMING SOON</div>
+   <small>Swap feature is being prepared.</small>
+  </div>
+  <div class="card center">
+   <div class="ico">💎</div>
+   <b>ANV WITHDRAW</b>
+   <div class="reward">COMING SOON</div>
+   <small>Withdrawal feature is being prepared.</small>
+  </div>
  </div>
- <div class="section-title">Legacy USDT Wallet</div>
+
+ <div class="section-title">USDT Wallet</div>
  <div class="card">
-  <small>Existing AdsEarn USDT balance</small>
+  <small>Your USDT Balance</small>
   <strong id="usdtBalance">$0.000000</strong>
-  <p class="muted" style="font-size:10px;line-height:1.5">This balance is separate from ANV Coin. Existing withdrawal rules remain unchanged.</p>
+  <p class="muted" style="font-size:10px;line-height:1.5">
+   Your USDT balance is separate from ANV Coin.
+  </p>
+
   <label class="muted">Amount (USDT)</label>
   <input class="input" id="withdrawAmount" type="number" min="1" step="0.01" placeholder="Minimum 1 USDT">
-  <label class="muted">BEP20 wallet address</label>
+
+  <label class="muted">BEP20 Wallet Address</label>
   <input class="input" id="withdrawAddress" placeholder="0x...">
+
   <button class="action" style="width:100%" onclick="withdrawUSDT()">SUBMIT USDT WITHDRAWAL</button>
  </div>
- <div class="section-title">ANV Withdrawal History</div>
- <div class="card" id="anvWithdrawHistory">Open Wallet to load history.</div>
- <div class="section-title">Legacy USDT Withdrawal History</div>
+
+ <div class="section-title">USDT Withdrawal History</div>
  <div class="card" id="withdrawHistory">Loading...</div>
 </section>
+<!-- END UPDATED WALLET SECTION -->
 
 <section class="page" id="referral">
  <div class="task-banner">
