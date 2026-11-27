@@ -8,8 +8,6 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://libtl.com/sdk.js" data-zone="12354877" data-sdk="show_12354877"></script>
 <style>
-
-/* ===== ANV VERSE reference-matched neon interface ===== */
 :root{--bg:#020716;--panel:#061638;--panel2:#081f4a;--cyan:#20e8ff;--blue:#087dff;--violet:#a42cff;--gold:#ffdc42;--muted:#b8cce9;--line:#176dff;--green:#19f58a}
 *{box-sizing:border-box}
 html{background:#020716;scroll-behavior:smooth}
@@ -85,35 +83,82 @@ button,input{font:inherit}button{cursor:pointer}
 .nav button.active{color:#fff;background:linear-gradient(145deg,#087dffdd,#06d9f0aa 60%,#5625c9dd);box-shadow:0 0 15px #00bfff99,inset 0 0 12px #ffffff24;text-shadow:0 0 9px #fff}
 .toast{position:fixed;z-index:40;left:50%;bottom:95px;transform:translateX(-50%);max-width:calc(100% - 30px);padding:11px 16px;border:1px solid #45dfff;border-radius:14px;background:#061a43;color:white;box-shadow:0 0 18px #078cff88;font-size:12px;display:none}
 .hidden{display:none!important}
-.center{text-align:center}
 .muted{color:#b6cbe7;font-size:11px;line-height:1.45}
+
+/* Compact Home: keep the main dashboard visible on mobile */
+body.home-view{height:100dvh;min-height:0;overflow:hidden;padding-bottom:0}
+body.home-view .app{height:100dvh;overflow:hidden;padding:8px 11px 82px;display:flex;flex-direction:column}
+body.home-view .top{flex:none;height:56px;margin-bottom:7px;border-radius:20px}
+body.home-view .logo{width:45px;height:45px;font-size:29px;border-radius:13px}
+body.home-view .brandname{font-size:20px}
+body.home-view .sub{font-size:8px;margin-top:4px}
+body.home-view .bell{width:42px;height:42px}
+body.home-view #home{flex:1;min-height:0;display:flex;flex-direction:column;gap:0;overflow:hidden}
+body.home-view #home .hero{flex:none;padding:8px 12px;border-radius:21px}
+body.home-view #home .eyebrow{font-size:10px}
+body.home-view #home .coin{width:76px;height:76px;font-size:25px;margin:5px auto 5px;border-width:3px}
+body.home-view #home .coin:before{inset:-9px -22px;border-width:2px}
+body.home-view #home .balance{font-size:27px}
+body.home-view #home .coinlabel{font-size:10px;margin-top:2px}
+body.home-view #home .herofoot{margin:8px -12px -8px;padding:8px 5px 7px}
+body.home-view #home .metric small{font-size:8px;margin-bottom:3px}
+body.home-view #home .metric b{font-size:12px}
+body.home-view #home .section-title{font-size:15px;margin:9px 2px 6px}
+body.home-view #home .grid{gap:6px}
+body.home-view #home .card{padding:7px 9px;border-radius:13px}
+body.home-view #home .ico{font-size:19px;margin-bottom:1px}
+body.home-view #home .card small{font-size:9px}
+body.home-view #home .card strong{font-size:16px;margin-top:2px}
+body.home-view #home .home-invite{min-height:0;height:57px;flex:none;padding:6px 10px;margin:8px 0 0;border-radius:15px;gap:8px}
+body.home-view #home .home-invite .banner-icon{font-size:29px}
+body.home-view #home .home-invite .banner-title{font-size:15px}
+body.home-view #home .home-invite .banner-sub{font-size:9px;margin-top:2px}
+body.home-view #home .home-invite>div:last-child{font-size:19px!important}
+body.home-view #home .quick-access-title{margin-top:7px}
+body.home-view #home .quick-grid .action{padding:9px 5px;font-size:11px}
+body.home-view .nav{bottom:max(5px,env(safe-area-inset-bottom));padding:4px;width:min(calc(100% - 18px),510px)}
+body.home-view .nav button{padding:5px 1px 4px;font-size:9px;gap:2px}
+body.home-view .nav button span{font-size:20px}
+@media(max-height:700px){
+ body.home-view .app{padding-top:5px}
+ body.home-view .top{height:49px;margin-bottom:5px}
+ body.home-view .logo{width:40px;height:40px}
+ body.home-view #home .hero{padding:6px 10px}
+ body.home-view #home .coin{width:65px;height:65px;font-size:22px;margin:3px auto}
+ body.home-view #home .balance{font-size:24px}
+ body.home-view #home .herofoot{padding:6px 4px}
+ body.home-view #home .section-title{margin:6px 2px 4px}
+ body.home-view #home .home-invite{height:49px;margin-top:6px}
+ body.home-view #home .quick-access-title{margin-top:5px}
+ body.home-view #home .quick-grid .action{padding:7px 4px}
+}
 @media(min-width:600px){.app{padding-top:18px}.top{height:72px}.logo{width:58px;height:58px}.brandname{font-size:24px}.hero{padding:22px}.coin{width:138px;height:138px}.nav{bottom:14px}}
 @media(max-width:370px){.app{padding-left:9px;padding-right:9px}.brandname{font-size:19px}.sub{font-size:8px;letter-spacing:2px}.logo{width:48px;height:48px}.bell{width:43px;height:43px}.task{padding:9px}.taskicon{width:48px;height:48px;font-size:24px}.taskright{min-width:70px;padding-left:6px}.taskright .action{min-width:63px;padding:7px 9px}.reward{font-size:15px}.nav button{font-size:9px}.nav button span{font-size:21px}}
-
 </style>
 </head>
-<body>
+<body class="home-view">
 <div class="app">
 <header class="top"><div class="brand"><div class="logo">A</div><div><div class="brandname">ANV VERSE</div><div class="sub">MINE · EARN · GROW</div></div></div><div class="top-tools"><div class="status">● SYSTEM ONLINE</div><button class="bell" onclick="openHistory()" aria-label="Notifications and history" title="History">🔔</button></div></header>
 
 <section class="page active" id="home">
  <div class="hero"><div class="eyebrow center">YOUR ANV COIN BALANCE</div><div class="coin">ANV</div><div class="balance" id="homeBalance">0 ANV</div><div class="coinlabel">ANV COIN</div><div class="herofoot"><div class="metric"><small>TOTAL EARNED</small><b id="totalEarned">0 ANV</b></div><div class="metric"><small>MINING LEVEL</small><b id="level">Level 1</b></div><div class="metric"><small>REFERRALS</small><b id="refCount">0</b></div></div></div>
  <div class="section-title">Your Overview</div><div class="grid">
-  <div class="card"><div class="ico">⛏️</div><small>Mining Reward / 24h</small><strong id="homeMiningReward">10 ANV</strong></div><div class="card"><div class="ico">🎁</div><small>Daily Check-in</small><strong id="homeDailyReward">2 ANV</strong></div><div class="card"><div class="ico">👥</div><small>Referral Reward</small><strong id="homeReferralReward">5 ANV</strong></div><div class="card"><div class="ico">⚡</div><small>Mining Status</small><strong id="homeMiningStatus">Ready</strong></div>
+  <div class="card"><div class="ico">⛏️</div><small>Mining Reward / 24h</small><strong id="homeMiningReward">10 ANV</strong></div><div class="card"><div class="ico">🎁</div><small>Daily Check-in</small><strong id="homeDailyReward">2 ANV</strong></div><div class="card"><div class="ico">👥</div><small>Referral Reward</small><strong id="homeReferralReward">10 ANV</strong></div><div class="card"><div class="ico">⚡</div><small>Mining Status</small><strong id="homeMiningStatus">Ready</strong></div>
  </div>
  <div class="task-banner home-invite" onclick="showPage('referral')" role="button" tabindex="0"><div class="banner-icon">🎁</div><div><div class="banner-title">Invite Friends</div><div class="banner-sub">Earn 10 ANV for every successful invite</div></div><div style="margin-left:auto;font-size:27px;color:#fff">❯</div></div>
- <div class="section-title">Quick Access</div><div class="grid"><button class="action" onclick="showPage('tasks')">🎁 Tasks & Rewards</button><button class="action secondary" onclick="showPage('mining')">⛏️ ANV Mining</button></div>
+ <div class="section-title quick-access-title">Quick Access</div><div class="grid quick-grid"><button class="action" onclick="showPage('tasks')">🎁 Tasks & Rewards</button><button class="action secondary" onclick="showPage('mining')">⛏️ ANV Mining</button></div>
 </section>
 
 <section class="page" id="tasks">
  <div class="task-banner"><div class="banner-icon">🎁</div><div><div class="banner-title">Complete Tasks</div><div class="banner-sub">Earn ANV Coins</div></div><div style="margin-left:auto;font-size:25px">↗</div></div>
  <div class="tabs" id="taskTabs"><button class="active" data-filter="all" onclick="filterTasks('all',this)">✦ All</button><button data-filter="daily" onclick="filterTasks('daily',this)">🎁 Daily</button><button data-filter="social" onclick="filterTasks('social',this)">👥 Social</button><button data-filter="ads" onclick="filterTasks('ads',this)">▶ Watch Ads</button></div>
- <div class="group-title"><span>Daily Tasks</span><span id="dailyGroupReward">+2 ANV</span></div>
+ <div class="group-title" data-group="daily"><span>Daily Tasks</span><span id="dailyGroupReward">+2 ANV</span></div>
  <div class="task" data-category="daily"><div class="row"><div class="taskicon">🗓️</div><div class="taskbody"><h3>Daily Check-in</h3><p>Open ANV Verse every day to collect your reward</p></div><div class="taskright"><div class="reward" id="dailyRewardLabel">+2 ANV</div><button class="action" id="dailyButton" onclick="claimDaily()">CLAIM</button></div></div></div>
- <div class="group-title"><span>Social Tasks</span><span>+50 ANV</span></div>
+ <div class="group-title" data-group="social"><span>Social Tasks</span><span>+50 ANV</span></div>
  <div class="task" data-category="social"><div class="row"><div class="taskicon">✈️</div><div class="taskbody"><h3>Join Telegram Community</h3><p>Join our official Telegram channel and verify membership</p></div><div class="taskright"><div class="reward">+50 ANV</div><button class="action" id="joinButton" onclick="joinGroup()">START</button></div></div></div>
- <div class="task" data-category="ads"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#45209b,#17194d);border-color:#9b7bff">▶️</div><div class="taskbody"><h3>Watch Rewarded Ad</h3><p>Watch a video ad and earn ANV points · Max 5 verified ads/day</p></div><div class="taskright"><div class="reward">+10 ANV</div><button class="action" id="watchAdButton" onclick="watchRewardedAd()" disabled>CHECKING...</button></div></div></div>
- <div class="group-title"><span>Special Tasks</span><span>Earn more</span></div>
+ <div class="task" data-category="ads"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#45209b,#17194d);border-color:#9b7bff">▶️</div><div class="taskbody"><h3>Watch Rewarded Ad</h3><p>Complete a rewarded video and earn ANV · Max 5 verified rewarded ads/day</p></div><div class="taskright"><div class="reward">+10 ANV</div><button class="action" id="watchAdButton" onclick="watchRewardedAd()" disabled>CHECKING...</button></div></div></div>
+ <div class="task" data-category="ads"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#60400a,#34204b);border-color:#ffcf47">🪟</div><div class="taskbody"><h3>Popup Ad Task</h3><p>Earn 5 ANV after a separately verified popup-ad task becomes available.</p></div><div class="taskright"><div class="reward">+5 ANV</div><button class="action secondary" disabled>COMING SOON</button></div></div></div>
+ <div class="group-title" data-group="social"><span>Special Tasks</span><span>Earn more</span></div>
  <div class="task" data-category="social"><div class="row"><div class="taskicon" style="background:linear-gradient(145deg,#60400a,#34204b);border-color:#ffcf47">⭐</div><div class="taskbody"><h3>Invite Friends</h3><p>Invite friends and earn when they become eligible</p></div><div class="taskright"><div class="reward">+10 ANV</div><button class="action" onclick="showPage('referral')">INVITE</button></div></div></div>
 </section>
 
@@ -137,9 +182,11 @@ button,input{font:inherit}button{cursor:pointer}
 </section>
 
 <section class="page" id="profile">
- <div class="section-title">My Profile</div><div class="hero center"><div class="coin">A</div><div class="balance" id="profileName">Player</div><div class="coinlabel">ANV Verse Member</div><div class="profile-badges"><span>✦ Member</span><span>⛏ Miner</span><span>◈ ANV Wallet</span></div></div>
- <div class="card" style="margin-top:12px"><div class="listitem row"><span class="muted">Telegram ID</span><b id="profileId">—</b></div><div class="listitem row"><span class="muted">ANV Balance</span><b id="profileBalance">0 ANV</b></div><div class="listitem row"><span class="muted">Total Earned</span><b id="profileEarned">0 ANV</b></div><div class="listitem row"><span class="muted">Mining Level</span><b id="profileLevel">Level 1</b></div></div><div class="section-title">About ANV Verse</div><div class="notice">ANV is your in-app rewards balance. Swap is not active.</div><button class="action" style="width:100%;margin-top:10px" onclick="contactSupport()">✉ CONTACT SUPPORT</button>
- <div class="notice">Need help? Contact our Telegram support team at @Vertusq. Your Telegram ID will be included in the message.</div>
+ <div class="section-title">My Profile</div>
+ <div class="hero center"><div class="coin">A</div><div class="balance" id="profileName">Player</div><div class="coinlabel">ANV Verse Member</div><div class="profile-badges"><span>✦ Member</span><span>⛏ Miner</span><span>◈ ANV Wallet</span></div></div>
+ <div class="notice"><b>About ANV Verse</b><br>ANV is your in-app rewards balance. Swap is not active.</div>
+ <div class="card" style="margin-top:10px;padding:12px"><b style="font-size:14px">Need Help?</b><p class="muted" style="margin:6px 0 9px">Contact our Telegram support team at @Vertusq. Your Telegram ID will be included in the message.</p><button class="action" style="width:100%" onclick="contactSupport()">✉ CONTACT SUPPORT</button></div>
+ <div class="card" style="margin-top:10px"><div class="listitem row"><span class="muted">Telegram ID</span><b id="profileId">—</b></div><div class="listitem row"><span class="muted">ANV Balance</span><b id="profileBalance">0 ANV</b></div><div class="listitem row"><span class="muted">Total Earned</span><b id="profileEarned">0 ANV</b></div><div class="listitem row"><span class="muted">Mining Level</span><b id="profileLevel">Level 1</b></div></div>
 </section>
 
 <section class="page" id="history">
@@ -151,6 +198,7 @@ button,input{font:inherit}button{cursor:pointer}
 
 <nav class="nav"><button class="active" data-page="home" onclick="showPage('home')"><span>⌂</span>Home</button><button data-page="tasks" onclick="showPage('tasks')"><span>▣</span>Tasks</button><button data-page="mining" onclick="showPage('mining')"><span>⛏</span>Mining</button><button data-page="wallet" onclick="showPage('wallet')"><span>◈</span>Wallet</button><button data-page="referral" onclick="showPage('referral')"><span>♧</span>Invite</button><button data-page="profile" onclick="showPage('profile')"><span>☻</span>Profile</button></nav>
 <div class="toast" id="toast"></div>
+
 <script>
 const API='https://telegramadsbot-0oan.onrender.com',tg=window.Telegram?.WebApp,initData=tg?.initData||'',headers={'Content-Type':'application/json','X-Telegram-Init-Data':initData};
 let account=null,mining=null,settings={},legacyUser=null,miningTicker=null,joinOpened=false,adStatus=null;
@@ -160,17 +208,65 @@ function fmt(v){return Number(v||0).toLocaleString('en-US')}
 function money(v){return '$'+(Number(v||0)/1000000).toFixed(6)}
 function escapeHTML(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function api(path,options={}){const r=await fetch(API+path,{...options,headers:{...headers,...(options.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok){const e=new Error(d.error||d.message||'Request failed');e.status=r.status;e.data=d;throw e}return d}
-function showPage(p){document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));document.getElementById(p).classList.add('active');document.querySelectorAll('.nav button').forEach(e=>e.classList.toggle('active',e.dataset.page===p));if(p==='wallet')loadWithdrawals();if(p==='history')loadHistory();if(p==='referral')loadReferrals();if(p==='tasks'){loadDailyStatus();loadAdStatus()}}
+
+function showPage(p){
+ document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
+ document.getElementById(p).classList.add('active');
+ document.body.classList.toggle('home-view',p==='home');
+ document.querySelectorAll('.nav button').forEach(e=>e.classList.toggle('active',e.dataset.page===p));
+ if(p==='wallet')loadWithdrawals();
+ if(p==='history')loadHistory();
+ if(p==='referral')loadReferrals();
+ if(p==='tasks'){loadDailyStatus();loadAdStatus()}
+}
 function openHistory(){showPage('history')}
-function filterTasks(cat,btn){document.querySelectorAll('#taskTabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('#tasks .task[data-category]').forEach(t=>t.classList.toggle('hidden',cat!=='all'&&t.dataset.category!==cat));document.querySelectorAll('#tasks .group-title').forEach(h=>h.classList.toggle('hidden',cat!=='all'))}
-async function authenticate(){if(!initData){document.body.innerHTML='<div class="app"><div class="hero center"><h2>Open ANV Verse in Telegram</h2><p class="muted">Please open this Mini App using the Telegram bot.</p></div></div>';throw new Error('Open this app inside Telegram.')}await api('/api/auth',{method:'POST',body:'{}'})}
-async function loadAll(){try{const [a,o]=await Promise.all([api('/api/anv/me'),api('/api/me')]);account=a.account;mining=a.mining;settings=a.settings||{};legacyUser=o.user;renderAccount();await Promise.all([loadReferrals(),loadJoinStatus(),loadDailyStatus(),loadAdStatus()]);startTicker()}catch(e){toast(e.message);console.error(e)}}
-function renderAccount(){const b=Number(account?.balance||0),earned=Number(account?.total_earned||0),level=Number(account?.mining_level||1),mr=Number(settings.mining_reward||10),dr=Number(settings.daily_checkin_reward||2),rr=Number(settings.referral_reward||5);[['homeBalance',fmt(b)+' ANV'],['walletBalance',fmt(b)+' ANV'],['totalEarned',fmt(earned)+' ANV'],['level','Level '+level],['homeMiningReward',fmt(mr)+' ANV'],['homeDailyReward',fmt(dr)+' ANV'],['homeReferralReward',fmt(rr)+' ANV'],['dailyRewardLabel','+'+fmt(dr)+' ANV'],['miningReward',fmt(mr)+' ANV'],['profileBalance',fmt(b)+' ANV'],['profileEarned',fmt(earned)+' ANV'],['profileLevel','Level '+level],['usdtBalance',money(legacyUser?.balance)]].forEach(([id,v])=>document.getElementById(id).textContent=v);document.getElementById('profileName').textContent=tg?.initDataUnsafe?.user?.first_name||legacyUser?.first_name||'Player';document.getElementById('profileId').textContent=tg?.initDataUnsafe?.user?.id||legacyUser?.telegram_id||'—';document.getElementById('homeMiningStatus').textContent=mining?'Active':'Ready';document.getElementById('dailyGroupReward').textContent='+'+fmt(dr)+' ANV'}
+function filterTasks(cat,btn){
+ document.querySelectorAll('#taskTabs button').forEach(b=>b.classList.remove('active'));
+ btn.classList.add('active');
+ document.querySelectorAll('#tasks .task[data-category]').forEach(t=>t.classList.toggle('hidden',cat!=='all'&&t.dataset.category!==cat));
+ document.querySelectorAll('#tasks .group-title').forEach(h=>{
+  const group=h.dataset.group;
+  h.classList.toggle('hidden',cat!=='all'&&group!==cat);
+ });
+}
+async function authenticate(){
+ if(!initData){document.body.innerHTML='<div class="app"><div class="hero center"><h2>Open ANV Verse in Telegram</h2><p class="muted">Please open this Mini App using the Telegram bot.</p></div></div>';throw new Error('Open this app inside Telegram.')}
+ await api('/api/auth',{method:'POST',body:'{}'})
+}
+async function loadAll(){
+ try{
+  const [a,o]=await Promise.all([api('/api/anv/me'),api('/api/me')]);
+  account=a.account;mining=a.mining;settings=a.settings||{};legacyUser=o.user;
+  renderAccount();
+  await Promise.all([loadReferrals(),loadJoinStatus(),loadDailyStatus(),loadAdStatus()]);
+  startTicker();
+ }catch(e){toast(e.message);console.error(e)}
+}
+function renderAccount(){
+ const b=Number(account?.balance||0),earned=Number(account?.total_earned||0),level=Number(account?.mining_level||1),mr=Number(settings.mining_reward||10),dr=Number(settings.daily_checkin_reward||2),rr=Number(settings.referral_reward||10);
+ [['homeBalance',fmt(b)+' ANV'],['walletBalance',fmt(b)+' ANV'],['totalEarned',fmt(earned)+' ANV'],['level','Level '+level],['homeMiningReward',fmt(mr)+' ANV'],['homeDailyReward',fmt(dr)+' ANV'],['homeReferralReward',fmt(rr)+' ANV'],['dailyRewardLabel','+'+fmt(dr)+' ANV'],['miningReward',fmt(mr)+' ANV'],['profileBalance',fmt(b)+' ANV'],['profileEarned',fmt(earned)+' ANV'],['profileLevel','Level '+level],['usdtBalance',money(legacyUser?.balance)]].forEach(([id,v])=>document.getElementById(id).textContent=v);
+ document.getElementById('profileName').textContent=tg?.initDataUnsafe?.user?.first_name||legacyUser?.first_name||'Player';
+ document.getElementById('profileId').textContent=tg?.initDataUnsafe?.user?.id||legacyUser?.telegram_id||'—';
+ document.getElementById('homeMiningStatus').textContent=mining?'Active':'Ready';
+ document.getElementById('dailyGroupReward').textContent='+'+fmt(dr)+' ANV';
+}
 function startTicker(){clearInterval(miningTicker);updateMiningUI();miningTicker=setInterval(updateMiningUI,1000)}
-function updateMiningUI(){const t=document.getElementById('miningTimer'),b=document.getElementById('miningButton'),m=document.getElementById('miningMessage'),bar=document.getElementById('miningProgress'),label=document.getElementById('miningProgressLabel');if(!mining){t.textContent='READY';m.textContent='Start your mining session to begin.';b.textContent='START MINING';b.disabled=Number(settings.mining_reward||0)<=0;bar.style.width='0%';label.textContent='0% complete';document.getElementById('homeMiningStatus').textContent='Ready';return}const startAt=new Date(mining.started_at).getTime(),endAt=new Date(mining.ends_at).getTime(),now=Date.now(),total=Math.max(1,endAt-startAt),progress=Math.max(0,Math.min(100,((now-startAt)/total)*100));bar.style.width=progress.toFixed(1)+'%';label.textContent=Math.floor(progress)+'% complete';const left=endAt-now;if(left<=0){t.textContent='00:00:00';m.textContent='Cycle complete! Your ANV reward is ready to collect.';b.textContent='COLLECT REWARD';b.disabled=false;document.getElementById('homeMiningStatus').textContent='Collect Ready';return}const h=Math.floor(left/3600000),mi=Math.floor(left%3600000/60000),sec=Math.floor(left%60000/1000);t.textContent=[h,mi,sec].map(x=>String(x).padStart(2,'0')).join(':');m.textContent='Mining is running. Your reward unlocks when the timer finishes.';b.textContent='MINING IN PROGRESS';b.disabled=true;document.getElementById('homeMiningStatus').textContent='Active'}
+function updateMiningUI(){
+ const t=document.getElementById('miningTimer'),b=document.getElementById('miningButton'),m=document.getElementById('miningMessage'),bar=document.getElementById('miningProgress'),label=document.getElementById('miningProgressLabel');
+ if(!mining){t.textContent='READY';m.textContent='Start your mining session to begin.';b.textContent='START MINING';b.disabled=Number(settings.mining_reward||0)<=0;bar.style.width='0%';label.textContent='0% complete';document.getElementById('homeMiningStatus').textContent='Ready';return}
+ const startAt=new Date(mining.started_at).getTime(),endAt=new Date(mining.ends_at).getTime(),now=Date.now(),total=Math.max(1,endAt-startAt),progress=Math.max(0,Math.min(100,((now-startAt)/total)*100));
+ bar.style.width=progress.toFixed(1)+'%';label.textContent=Math.floor(progress)+'% complete';
+ const left=endAt-now;
+ if(left<=0){t.textContent='00:00:00';m.textContent='Cycle complete! Your ANV reward is ready to collect.';b.textContent='COLLECT REWARD';b.disabled=false;document.getElementById('homeMiningStatus').textContent='Collect Ready';return}
+ const h=Math.floor(left/3600000),mi=Math.floor(left%3600000/60000),sec=Math.floor(left%60000/1000);
+ t.textContent=[h,mi,sec].map(x=>String(x).padStart(2,'0')).join(':');
+ m.textContent='Mining is running. Your reward unlocks when the timer finishes.';
+ b.textContent='MINING IN PROGRESS';b.disabled=true;document.getElementById('homeMiningStatus').textContent='Active';
+}
 const wait=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
+
 async function createAndShowRewardedAd(purpose){
- if(!adStatus)await loadAdStatus();
+ adStatus=await api('/api/ads/status');
  if(!adStatus?.enabled||Number(adStatus.remaining||0)<=0)throw new Error('Today’s rewarded-ad limit has been reached or ads are unavailable.');
  if(typeof window.show_12354877!=='function')throw new Error('Monetag ad is not ready. Please try again shortly.');
  const session=await api('/api/monetag/session',{method:'POST',body:JSON.stringify({purpose})});
@@ -181,7 +277,11 @@ async function consumeVerifiedMiningAd(purpose,path){
  let lastError=null;
  for(let i=0;i<20;i++){
   try{return await api(path,{method:'POST',body:'{}'})}
-  catch(e){lastError=e;const reason=e.data?.reason||'';if(e.status===409&&['verified_ad_required','ad_not_verified'].includes(reason)){await wait(3000);continue}throw e}
+  catch(e){
+   lastError=e;const reason=e.data?.reason||'';
+   if(e.status===409&&['verified_ad_required','ad_not_verified'].includes(reason)){await wait(3000);continue}
+   throw e;
+  }
  }
  throw new Error(lastError?.message||'Monetag verification is still pending. No mining action was taken. Please refresh and try again.');
 }
@@ -202,23 +302,91 @@ async function miningAction(){
  }catch(e){toast(e.message||'Mining action could not be verified.');await loadAll()}
  finally{updateMiningUI();loadAdStatus()}
 }
-async function loadDailyStatus(){try{const r=await api('/api/anv/daily/status');const claimed=!!(r.claimed||r.claimed_today||r.completed);const b=document.getElementById('dailyButton');if(claimed){b.textContent='✓ CLAIMED';b.disabled=true;b.classList.add('green')}else{b.textContent='CLAIM';b.disabled=false;b.classList.remove('green')}}catch(e){console.warn('Daily status unavailable',e)}}
-async function claimDaily(){const b=document.getElementById('dailyButton');b.disabled=true;try{const r=await api('/api/anv/daily/claim',{method:'POST',body:'{}'});toast('Daily reward: '+fmt(r.reward)+' ANV');b.textContent='✓ CLAIMED';b.classList.add('green');await loadAll()}catch(e){if(/already claimed/i.test(e.message)){b.textContent='✓ CLAIMED';b.classList.add('green')}else b.disabled=false;toast(e.message)}}
-async function loadJoinStatus(){try{const r=await api('/api/tasks/status'),b=document.getElementById('joinButton');if(r.claimed){b.textContent='✓ CLAIMED';b.disabled=true;b.classList.add('green')}}catch(e){console.error(e)}}
-async function joinGroup(){const b=document.getElementById('joinButton');try{if(!joinOpened){const c=await api('/api/config');if(!c.group_url)throw new Error('Telegram group link is not configured.');if(tg)tg.openTelegramLink(c.group_url);else window.open(c.group_url,'_blank');joinOpened=true;b.textContent='VERIFY & CLAIM';toast('Join the group, return here and tap Verify & Claim.');return}b.disabled=true;const r=await api('/api/tasks/join',{method:'POST',body:'{}'});if(r.ok){b.textContent='✓ CLAIMED';b.classList.add('green');toast('+'+fmt(r.reward||50)+' ANV group reward credited.');await loadAll()}else throw new Error(r.error||'Membership not verified')}catch(e){b.disabled=false;toast(e.message)}}
-async function loadReferrals(){try{const r=await api('/api/anv/referrals');document.getElementById('refCount').textContent=fmt(r.total_referrals);document.getElementById('refTotal').textContent=fmt(r.total_referrals);document.getElementById('refEarned').textContent=fmt(r.anv_earned)+' ANV';document.getElementById('refLink').value=r.referral_link||'Referral link unavailable';const l=document.getElementById('refList');if(!r.referrals?.length)l.textContent='No referrals yet. Invite friends to grow your network.';else l.innerHTML=r.referrals.map(u=>`<div class="listitem"><b>${escapeHTML(u.first_name||u.username||'Telegram user')}</b><div class="muted">Joined ${new Date(u.joined_at).toLocaleDateString()}</div></div>`).join('')}catch(e){console.error(e)}}
-async function copyReferral(){const v=document.getElementById('refLink').value;if(!v||v==='Referral link unavailable')return toast('Referral link is not ready.');try{await navigator.clipboard.writeText(v)}catch{const e=document.getElementById('refLink');e.select();document.execCommand('copy')}toast('Referral link copied!')}
-function shareReferral(){const v=document.getElementById('refLink').value;if(!v||v==='Referral link unavailable')return toast('Referral link is not ready.');const u='https://t.me/share/url?url='+encodeURIComponent(v)+'&text='+encodeURIComponent('Join me on ANV Verse');if(tg?.openTelegramLink)tg.openTelegramLink(u);else window.open(u,'_blank')}
-function contactSupport(){const userId=tg?.initDataUnsafe?.user?.id||legacyUser?.telegram_id||account?.telegram_id||'';const firstName=tg?.initDataUnsafe?.user?.first_name||legacyUser?.first_name||'ANV Verse user';const message='Hello ANV VERSE Support, I need help. Name: '+firstName+'. Telegram ID: '+(userId||'Not available')+'.';const url='https://t.me/Vertusq?text='+encodeURIComponent(message);if(tg?.openTelegramLink)tg.openTelegramLink(url);else window.open(url,'_blank','noopener,noreferrer')}
-async function loadAdStatus(){const button=document.getElementById('watchAdButton');try{adStatus=await api('/api/ads/status');if(button){const remaining=Number(adStatus.remaining||0);button.disabled=!adStatus.enabled||remaining<=0;button.textContent=button.disabled?'ADS UNAVAILABLE':`WATCH AD (${remaining} LEFT)`}}catch(e){if(button){button.disabled=true;button.textContent='ADS UNAVAILABLE'}}}
+async function loadDailyStatus(){
+ try{
+  const r=await api('/api/anv/daily/status');
+  const claimed=!!(r.claimed||r.claimed_today||r.completed),b=document.getElementById('dailyButton');
+  if(claimed){b.textContent='✓ CLAIMED';b.disabled=true;b.classList.add('green')}
+  else{b.textContent='CLAIM';b.disabled=false;b.classList.remove('green')}
+ }catch(e){console.warn('Daily status unavailable',e)}
+}
+async function claimDaily(){
+ const b=document.getElementById('dailyButton');b.disabled=true;
+ try{
+  const r=await api('/api/anv/daily/claim',{method:'POST',body:'{}'});
+  toast('Daily reward: '+fmt(r.reward)+' ANV');b.textContent='✓ CLAIMED';b.classList.add('green');await loadAll();
+ }catch(e){
+  if(/already claimed/i.test(e.message)){b.textContent='✓ CLAIMED';b.classList.add('green')}
+  else b.disabled=false;
+  toast(e.message);
+ }
+}
+async function loadJoinStatus(){
+ try{const r=await api('/api/tasks/status'),b=document.getElementById('joinButton');if(r.claimed){b.textContent='✓ CLAIMED';b.disabled=true;b.classList.add('green')}}catch(e){console.error(e)}
+}
+async function joinGroup(){
+ const b=document.getElementById('joinButton');
+ try{
+  if(!joinOpened){
+   const c=await api('/api/config');if(!c.group_url)throw new Error('Telegram group link is not configured.');
+   if(tg)tg.openTelegramLink(c.group_url);else window.open(c.group_url,'_blank');
+   joinOpened=true;b.textContent='VERIFY & CLAIM';toast('Join the group, return here and tap Verify & Claim.');return;
+  }
+  b.disabled=true;const r=await api('/api/tasks/join',{method:'POST',body:'{}'});
+  if(r.ok){b.textContent='✓ CLAIMED';b.classList.add('green');toast('+'+fmt(r.reward||50)+' ANV group reward credited.');await loadAll()}
+  else throw new Error(r.error||'Membership not verified');
+ }catch(e){b.disabled=false;toast(e.message)}
+}
+async function loadReferrals(){
+ try{
+  const r=await api('/api/anv/referrals');
+  document.getElementById('refCount').textContent=fmt(r.total_referrals);
+  document.getElementById('refTotal').textContent=fmt(r.total_referrals);
+  document.getElementById('refEarned').textContent=fmt(r.anv_earned)+' ANV';
+  document.getElementById('refLink').value=r.referral_link||'Referral link unavailable';
+  const l=document.getElementById('refList');
+  if(!r.referrals?.length)l.textContent='No referrals yet. Invite friends to grow your network.';
+  else l.innerHTML=r.referrals.map(u=>`<div class="listitem"><b>${escapeHTML(u.first_name||u.username||'Telegram user')}</b><div class="muted">Joined ${new Date(u.joined_at).toLocaleDateString()}</div></div>`).join('');
+ }catch(e){console.error(e)}
+}
+async function copyReferral(){
+ const v=document.getElementById('refLink').value;
+ if(!v||v==='Referral link unavailable')return toast('Referral link is not ready.');
+ try{await navigator.clipboard.writeText(v)}catch{const e=document.getElementById('refLink');e.select();document.execCommand('copy')}
+ toast('Referral link copied!');
+}
+function shareReferral(){
+ const v=document.getElementById('refLink').value;
+ if(!v||v==='Referral link unavailable')return toast('Referral link is not ready.');
+ const u='https://t.me/share/url?url='+encodeURIComponent(v)+'&text='+encodeURIComponent('Join me on ANV Verse');
+ if(tg?.openTelegramLink)tg.openTelegramLink(u);else window.open(u,'_blank');
+}
+function contactSupport(){
+ const userId=tg?.initDataUnsafe?.user?.id||legacyUser?.telegram_id||account?.telegram_id||'';
+ const firstName=tg?.initDataUnsafe?.user?.first_name||legacyUser?.first_name||'ANV Verse user';
+ const message='Hello ANV VERSE Support, I need help. Name: '+firstName+'. Telegram ID: '+(userId||'Not available')+'.';
+ const url='https://t.me/Vertusq?text='+encodeURIComponent(message);
+ if(tg?.openTelegramLink)tg.openTelegramLink(url);else window.open(url,'_blank','noopener,noreferrer');
+}
+async function loadAdStatus(){
+ const button=document.getElementById('watchAdButton');
+ try{
+  adStatus=await api('/api/ads/status');
+  if(button){
+   const remaining=Number(adStatus.remaining||0);
+   button.disabled=!adStatus.enabled||remaining<=0;
+   button.textContent=button.disabled?'ADS UNAVAILABLE':`WATCH AD (${remaining} LEFT)`;
+  }
+ }catch(e){if(button){button.disabled=true;button.textContent='ADS UNAVAILABLE'}}
+}
 async function watchRewardedAd(){
  const button=document.getElementById('watchAdButton');
  if(!button||button.disabled)return;
- if(!adStatus)await loadAdStatus();
- if(!adStatus?.enabled||Number(adStatus.remaining||0)<=0)return toast('Rewarded ads are currently unavailable.');
- const before=Number(adStatus.reward_ads_watched??0);
- button.disabled=true;button.textContent='PREPARING AD...';
  try{
+  adStatus=await api('/api/ads/status');
+  if(!adStatus?.enabled||Number(adStatus.remaining||0)<=0)return toast('Rewarded ads are currently unavailable.');
+  const before=Number(adStatus.reward_ads_watched??0);
+  button.disabled=true;button.textContent='PREPARING AD...';
   await createAndShowRewardedAd('reward');
   button.textContent='VERIFYING REWARD...';
   let verified=false;
@@ -233,20 +401,68 @@ async function watchRewardedAd(){
  }catch(e){toast(e.message||'Ad could not be completed.');await loadAdStatus()}
  finally{await loadAdStatus()}
 }
+
+/* Daily non-rewarded app-open interstitial: once per user/day.
+   This does not credit ANV and is separate from rewarded ads. */
 async function maybeShowDailyOpenAd(){
  try{
   const result=await api('/api/monetag/daily-open',{method:'POST',body:'{}'});
-  if(!result?.show||typeof window.show_12354877!=='function')return;
+  if(!result?.show)return;
+  for(let i=0;i<12&&typeof window.show_12354877!=='function';i++)await wait(1000);
+  if(typeof window.show_12354877!=='function')return;
   const ad=window.show_12354877({type:'inApp',inAppSettings:{frequency:1,capping:24,interval:86400,timeout:0,everyPage:false}});
   if(ad&&typeof ad.then==='function')await ad;
  }catch(e){console.warn('Daily Monetag app-open ad unavailable:',e)}
 }
-async function withdrawUSDT(){const amount=Number(document.getElementById('withdrawAmount').value),address=document.getElementById('withdrawAddress').value.trim();if(!Number.isFinite(amount)||amount<1)return toast('Minimum withdrawal is 1 USDT.');if(!/^0x[a-fA-F0-9]{40}$/.test(address))return toast('Enter a valid BEP20 address.');try{const r=await api('/api/withdraw',{method:'POST',body:JSON.stringify({amount:Math.round(amount*1000000),method:'USDT (BNB Smart Chain BEP20)',details:address})});toast(r.admin_notified?'Request sent to admin.':'Request created; admin notification pending.');document.getElementById('withdrawAmount').value='';await loadWithdrawals()}catch(e){toast(e.message)}}
-async function loadWithdrawals(){try{const r=await api('/api/withdrawals'),e=document.getElementById('withdrawHistory');if(!r.withdrawals?.length){e.textContent='No withdrawals yet.';return}e.innerHTML=r.withdrawals.map(x=>{const tx=x.transaction_hash?`<div class="muted">TX: <a style="color:#68dfff" href="https://bscscan.com/tx/${encodeURIComponent(x.transaction_hash)}" target="_blank" rel="noopener">View on BscScan</a></div>`:'';return `<div class="listitem"><div class="row"><b>${money(x.amount)} USDT</b><span class="status-pill">${escapeHTML(x.status||'pending')}</span></div><div class="muted">${escapeHTML(new Date(x.created_at).toLocaleString())}</div>${x.paid_at?`<div class="muted">Paid: ${escapeHTML(new Date(x.paid_at).toLocaleString())}</div>`:''}${tx}</div>`}).join('')}catch(e){document.getElementById('withdrawHistory').textContent='Could not load withdrawals.'}}
+async function withdrawUSDT(){
+ const amount=Number(document.getElementById('withdrawAmount').value),address=document.getElementById('withdrawAddress').value.trim();
+ if(!Number.isFinite(amount)||amount<1)return toast('Minimum withdrawal is 1 USDT.');
+ if(!/^0x[a-fA-F0-9]{40}$/.test(address))return toast('Enter a valid BEP20 address.');
+ try{
+  const r=await api('/api/withdraw',{method:'POST',body:JSON.stringify({amount:Math.round(amount*1000000),method:'USDT (BNB Smart Chain BEP20)',details:address})});
+  toast(r.admin_notified?'Request sent to admin.':'Request created; admin notification pending.');
+  document.getElementById('withdrawAmount').value='';await loadWithdrawals();
+ }catch(e){toast(e.message)}
+}
+async function loadWithdrawals(){
+ try{
+  const r=await api('/api/withdrawals'),e=document.getElementById('withdrawHistory');
+  if(!r.withdrawals?.length){e.textContent='No withdrawals yet.';return}
+  e.innerHTML=r.withdrawals.map(x=>{
+   const tx=x.transaction_hash?`<div class="muted">TX: <a style="color:#68dfff" href="https://bscscan.com/tx/${encodeURIComponent(x.transaction_hash)}" target="_blank" rel="noopener">View on BscScan</a></div>`:'';
+   return `<div class="listitem"><div class="row"><b>${money(x.amount)} USDT</b><span class="status-pill">${escapeHTML(x.status||'pending')}</span></div><div class="muted">${escapeHTML(new Date(x.created_at).toLocaleString())}</div>${x.paid_at?`<div class="muted">Paid: ${escapeHTML(new Date(x.paid_at).toLocaleString())}</div>`:''}${tx}</div>`;
+  }).join('');
+ }catch(e){document.getElementById('withdrawHistory').textContent='Could not load withdrawals.'}
+}
 function safeDate(v){const d=v?new Date(v):null;return d&&!Number.isNaN(d.getTime())?d.toLocaleString():'Date unavailable'}
-async function loadHistory(){const a=document.getElementById('anvHistoryList'),w=document.getElementById('usdtHistoryList');a.innerHTML='<div class="muted">Loading ANV activity...</div>';w.innerHTML='<div class="muted">Loading withdrawal history...</div>';const results=await Promise.allSettled([api('/api/anv/history'),api('/api/withdrawals')]);const ar=results[0],wr=results[1];if(ar.status==='fulfilled'){const items=ar.value.transactions||[];a.innerHTML=items.length?items.map(x=>{const credit=String(x.transaction_type||'credit').toLowerCase()==='credit';const label=x.description||x.source||x.transaction_type||'ANV activity';return `<div class="history-item"><div class="history-meta"><b>${escapeHTML(label)}</b><small>${escapeHTML(safeDate(x.created_at))} · ${escapeHTML(x.source||'ANV')}</small></div><div class="history-amount ${credit?'positive':'negative'}">${credit?'+':'−'}${fmt(x.amount)} ANV</div></div>`}).join(''):'<div class="muted">No ANV activity recorded yet.</div>'}else{a.innerHTML='<div class="muted">ANV history is temporarily unavailable.</div>'}if(wr.status==='fulfilled'){const items=wr.value.withdrawals||[];w.innerHTML=items.length?items.map(x=>{const status=String(x.status||'pending').toLowerCase();const tx=x.transaction_hash?`<small><a style="color:#68dfff" href="https://bscscan.com/tx/${encodeURIComponent(x.transaction_hash)}" target="_blank" rel="noopener">View transaction on BscScan ↗</a></small>`:'';return `<div class="history-item"><div class="history-meta"><b>${money(x.amount)} USDT withdrawal</b><small>${escapeHTML(safeDate(x.created_at))}</small>${x.paid_at?`<small>Paid: ${escapeHTML(safeDate(x.paid_at))}</small>`:''}${tx}</div><span class="status-pill">${escapeHTML(status.replace(/_/g,' '))}</span></div>`}).join(''):'<div class="muted">No USDT withdrawal requests yet.</div>'}else{w.innerHTML='<div class="muted">Withdrawal history is temporarily unavailable.</div>'}}
+async function loadHistory(){
+ const a=document.getElementById('anvHistoryList'),w=document.getElementById('usdtHistoryList');
+ a.innerHTML='<div class="muted">Loading ANV activity...</div>';w.innerHTML='<div class="muted">Loading withdrawal history...</div>';
+ const results=await Promise.allSettled([api('/api/anv/history'),api('/api/withdrawals')]),ar=results[0],wr=results[1];
+ if(ar.status==='fulfilled'){
+  const items=ar.value.transactions||[];
+  a.innerHTML=items.length?items.map(x=>{
+   const credit=String(x.transaction_type||'credit').toLowerCase()==='credit',label=x.description||x.source||x.transaction_type||'ANV activity';
+   return `<div class="history-item"><div class="history-meta"><b>${escapeHTML(label)}</b><small>${escapeHTML(safeDate(x.created_at))} · ${escapeHTML(x.source||'ANV')}</small></div><div class="history-amount ${credit?'positive':'negative'}">${credit?'+':'−'}${fmt(x.amount)} ANV</div></div>`;
+  }).join(''):'<div class="muted">No ANV activity recorded yet.</div>';
+ }else a.innerHTML='<div class="muted">ANV history is temporarily unavailable.</div>';
+ if(wr.status==='fulfilled'){
+  const items=wr.value.withdrawals||[];
+  w.innerHTML=items.length?items.map(x=>{
+   const status=String(x.status||'pending').toLowerCase(),tx=x.transaction_hash?`<small><a style="color:#68dfff" href="https://bscscan.com/tx/${encodeURIComponent(x.transaction_hash)}" target="_blank" rel="noopener">View transaction on BscScan ↗</a></small>`:'';
+   return `<div class="history-item"><div class="history-meta"><b>${money(x.amount)} USDT withdrawal</b><small>${escapeHTML(safeDate(x.created_at))}</small>${x.paid_at?`<small>Paid: ${escapeHTML(safeDate(x.paid_at))}</small>`:''}${tx}</div><span class="status-pill">${escapeHTML(status.replace(/_/g,' '))}</span></div>`;
+  }).join(''):'<div class="muted">No USDT withdrawal requests yet.</div>';
+ }else w.innerHTML='<div class="muted">Withdrawal history is temporarily unavailable.</div>';
+}
 
-(async()=>{try{await authenticate();maybeShowDailyOpenAd();await loadAll()}catch(e){console.error(e);if(initData)toast(e.message)}})();
+(async()=>{
+ try{
+  await authenticate();
+  await loadAll();
+  /* Run app-open ad after initial account/UI load to reduce startup delay. */
+  setTimeout(()=>maybeShowDailyOpenAd(),700);
+ }catch(e){console.error(e);if(initData)toast(e.message)}
+})();
 </script>
 </body>
-                                           </html>
+</html>
