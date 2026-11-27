@@ -27,6 +27,9 @@ button,input{font:inherit}button{cursor:pointer}
 .bell{width:49px;height:49px;border-radius:16px;border:1px solid #8c4bff;background:linear-gradient(145deg,#152b72,#160a49);color:#fff;font-size:23px;box-shadow:0 0 13px #6b32ff88,inset 0 0 10px #168cff44}
 .bell:active{transform:scale(.96)}
 .page{display:none;animation:pageIn .22s ease-out}.page.active{display:block}
+/* Strict page isolation: Home content cannot bleed into other tabs. */
+#mainApp>.page{display:none!important}
+#mainApp>.page.active{display:block!important}
 @keyframes pageIn{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:none}}
 .hero{position:relative;overflow:hidden;border:1.5px solid #087dff;border-right-color:#b52cff;border-radius:27px;padding:18px 16px;background:radial-gradient(ellipse at 48% 45%,#063e9c 0,#061b4c 38%,#040d2a 75%),linear-gradient(145deg,#0a3983,#060c29 70%);box-shadow:0 0 0 1px #48caff22,0 0 19px #007bff66,0 0 28px #7b22ff33,inset 0 0 30px #087dff24}
 .hero:before{content:"";position:absolute;width:230px;height:230px;left:50%;top:30px;transform:translateX(-50%);border-radius:50%;border:1px solid #00cfff44;box-shadow:0 0 0 18px #0b83ff0d,0 0 0 42px #0b83ff0a,0 0 45px #007dff22;pointer-events:none}
@@ -154,6 +157,10 @@ button,input{font:inherit}button{cursor:pointer}
  #home .hero{padding:11px 11px}
 }
 
+
+.ref-loading{display:flex;align-items:center;justify-content:center;gap:11px;min-height:76px;color:#bfeaff;font-size:12px;font-weight:800;letter-spacing:.4px}
+.ref-spinner{width:23px;height:23px;flex:0 0 23px;border:3px solid #3b65a8;border-top-color:#66eaff;border-right-color:#ad79ff;border-radius:50%;animation:refSpin .75s linear infinite;box-shadow:0 0 12px #29bfff55}
+@keyframes refSpin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -229,7 +236,7 @@ function fmt(v){return Number(v||0).toLocaleString('en-US')}
 function money(v){return '$'+(Number(v||0)/1000000).toFixed(6)}
 function escapeHTML(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function api(path,options={}){const r=await fetch(API+path,{...options,headers:{...headers,...(options.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok){const e=new Error(d.error||d.message||'Request failed');e.status=r.status;e.data=d;throw e}return d}
-function showPage(p){document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));document.getElementById(p).classList.add('active');document.querySelectorAll('.nav button').forEach(e=>e.classList.toggle('active',e.dataset.page===p));if(p==='wallet')loadWithdrawals();if(p==='history')loadHistory();if(p==='referral')loadReferrals();if(p==='tasks'){loadDailyStatus();loadAdStatus()}}
+function showPage(p){const target=document.getElementById(p);if(!target||!target.classList.contains('page'))return;document.querySelectorAll('#mainApp>.page').forEach(e=>e.classList.remove('active'));target.classList.add('active');document.querySelectorAll('.nav button').forEach(e=>e.classList.toggle('active',e.dataset.page===p));if(p==='wallet')loadWithdrawals();if(p==='history')loadHistory();if(p==='referral')loadReferrals();if(p==='tasks'){loadDailyStatus();loadAdStatus()}}
 function openHistory(){showPage('history')}
 function filterTasks(cat,btn){document.querySelectorAll('#taskTabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('#tasks .task[data-category]').forEach(t=>t.classList.toggle('hidden',cat!=='all'&&t.dataset.category!==cat));document.querySelectorAll('#tasks .group-title').forEach(h=>h.classList.toggle('hidden',cat!=='all'))}
 async function authenticate(){if(!initData){document.body.innerHTML='<div class="app"><div class="hero center"><h2>Open ANV Verse in Telegram</h2><p class="muted">Please open this Mini App using the Telegram bot.</p></div></div>';throw new Error('Open this app inside Telegram.')}await api('/api/auth',{method:'POST',body:'{}'})}
@@ -287,7 +294,7 @@ async function loadReferrals(){
  const link=document.getElementById('refLink'),list=document.getElementById('refList');
  if(!link||!list)return;
  if(!link.value||link.value==='Referral link unavailable')link.value='Loading referral link...';
- list.textContent='Loading referrals...';
+ list.innerHTML='<div class="ref-loading"><span class="ref-spinner"></span><span>LOADING YOUR REFERRALS...</span></div>';
  try{
   const r=await api('/api/anv/referrals');
   const total=Number(r.total_referrals||0),earned=Number(r.anv_earned||0);
@@ -352,4 +359,4 @@ async function loadHistory(){const a=document.getElementById('anvHistoryList'),w
 (async()=>{try{await authenticate();const dailyAdTask=maybeShowDailyOpenAd();await loadAll();dailyAdTask.catch(e=>console.warn('Daily ad task failed:',e))}catch(e){console.error(e);if(initData)toast(e.message)}})();
 </script>
 </body>
-                                                                                                                                                                                                                                                                                    </html>
+                                                                                                                                                                                                                                                                            </html>
