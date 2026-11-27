@@ -5,12 +5,21 @@ import crypto from 'node:crypto';
 import { Telegraf, Markup } from 'telegraf';
 import { createClient } from '@supabase/supabase-js';
 
-// ANV VERSE API — existing ANV, Monetag and legacy USDT flows preserved.
-// New ANV withdrawal flow uses public.anv_withdrawals and its SQL RPCs.
+// ANV VERSE API — Monetag-only rewarded ads.
+// Server postbacks are authoritative. Client callbacks never credit ANV.
 
-const required = ['BOT_TOKEN', 'ADMIN_ID', 'APP_URL', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+const required = [
+  'BOT_TOKEN',
+  'ADMIN_ID',
+  'APP_URL',
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY'
+];
+
 for (const key of required) {
-  if (!process.env[key]) throw new Error(`Missing environment variable: ${key}`);
+  if (!process.env[key]) {
+    throw new Error(`Missing environment variable: ${key}`);
+  }
 }
 
 const cfg = {
@@ -40,6 +49,7 @@ const adsEnabled = monetag.enabled && Boolean(monetag.secret);
 if (!Number.isSafeInteger(cfg.adminId) || cfg.adminId <= 0) {
   throw new Error('ADMIN_ID must be your numeric Telegram user ID');
 }
+
 if (!Number.isInteger(cfg.port) || cfg.port <= 0) {
   throw new Error('PORT must be a valid port');
 }
@@ -66,22 +76,32 @@ app.use((req, res, next) => {
     if (!allowedOrigins.has(origin)) {
       return res.status(403).json({ error: 'Origin not allowed' });
     }
+
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }
 
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Telegram-Init-Data');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, X-Telegram-Init-Data'
+  );
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   next();
 });
 
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static('public'));
 
-// Telegram Mini App authentication.
+// -----------------------------------------------------------------------------
+// Telegram Mini App authentication
+// -----------------------------------------------------------------------------
+
 function verifyTelegramInitData(initData) {
   if (!initData || typeof initData !== 'string') return null;
 
@@ -101,7 +121,7 @@ function verifyTelegramInitData(initData) {
 
   const dataCheckString = [...params.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
+    .map(([key, value]) => `${key}=${value}`)
     .join('\n');
 
   const secretKey = crypto
@@ -123,22 +143,33 @@ function verifyTelegramInitData(initData) {
 
   try {
     const user = JSON.parse(params.get('user') || '{}');
-    return user.id && Number.isSafeInteger(Number(user.id)) ? user : null;
+
+    return user.id && Number.isSafeInteger(Number(user.id))
+      ? user
+      : null;
   } catch {
     return null;
   }
 }
 
 function requireMiniApp(req, res, next) {
-  const user = verifyTelegramInitData(req.headers['x-telegram-init-data']);
+  const user = verifyTelegramInitData(
+    req.headers['x-telegram-init-data']
+  );
 
   if (!user) {
-    return res.status(401).json({ error: 'Telegram authentication failed' });
+    return res.status(401).json({
+      error: 'Telegram authentication failed'
+    });
   }
 
   req.telegramUser = user;
   next();
 }
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
 
 function validBep20Address(address) {
   return /^0x[a-fA-F0-9]{40}$/.test(String(address || '').trim());
@@ -156,7 +187,28 @@ function isValidTelegramId(value) {
 }
 
 function escapeTelegramText(value) {
-  return String(value ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  return String(value ?? '').replace(
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,
+    ''
+  );
+}
+
+function utcDayWindow() {
+  const now = new Date();
+
+  const start = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate()
+  ));
+
+  const end = new Date(start.getTime() + 86400000);
+
+  return {
+    start: start.toISOString(),
+    end: end.toISOString(),
+    date: start.toISOString().slice(0, 10)
+  };
 }
 
 async function getAnvSetting(key, fallback = 0) {
@@ -170,6 +222,7 @@ async function getAnvSetting(key, fallback = 0) {
   if (!data) return fallback;
 
   const value = Number(data.setting_value);
+
   return Number.isFinite(value) ? value : fallback;
 }
 
@@ -178,7 +231,10 @@ async function ensureAnvAccount(telegramId) {
     .from('anv_accounts')
     .upsert(
       { telegram_id: telegramId },
-      { onConflict: 'telegram_id', ignoreDuplicates: true }
+      {
+        onConflict: 'telegram_id',
+        ignoreDuplicates: true
+      }
     );
 
   if (error) throw error;
@@ -201,7 +257,8 @@ async function saveUser(user, referralId = null) {
   if (existingError) throw existingError;
 
   const validReferral =
-    isValidTelegramId(referralId) && Number(referralId) !== telegramId;
+    isValidTelegramId(referralId) &&
+    Number(referralId) !== telegramId;
 
   const row = {
     telegram_id: telegramId,
@@ -215,7 +272,10 @@ async function saveUser(user, referralId = null) {
 
   const { error: upsertError } = await supabase
     .from('users')
-    .upsert(row, { onConflict: 'telegram_id', ignoreDuplicates: true });
+    .upsert(row, {
+      onConflict: 'telegram_id',
+      ignoreDuplicates: true
+    });
 
   if (upsertError) throw upsertError;
 
@@ -232,13 +292,14 @@ async function saveUser(user, referralId = null) {
   let finalReferrer = existing?.referred_by || null;
 
   if (!finalReferrer && validReferral) {
-    const { data: updatedReferral, error: referralError } = await supabase
-      .from('users')
-      .update({ referred_by: Number(referralId) })
-      .eq('telegram_id', telegramId)
-      .is('referred_by', null)
-      .select('referred_by')
-      .maybeSingle();
+    const { data: updatedReferral, error: referralError } =
+      await supabase
+        .from('users')
+        .update({ referred_by: Number(referralId) })
+        .eq('telegram_id', telegramId)
+        .is('referred_by', null)
+        .select('referred_by')
+        .maybeSingle();
 
     if (referralError) throw referralError;
 
@@ -261,50 +322,147 @@ async function saveUser(user, referralId = null) {
       p_referred_id: telegramId
     });
 
-    if (error) console.error('ANV referral credit error:', error);
+    if (error) {
+      console.error('ANV referral credit error:', error);
+    }
   }
 }
 
+// Monetag is the only enabled ad provider.
 const adProviders = [
-  { id: 'monetag', enabled: adsEnabled, configured: Boolean(monetag.secret) },
-  { id: 'adsterra', enabled: false, configured: false },
-  { id: 'propellerads', enabled: false, configured: false },
-  { id: 'ad-maven', enabled: false, configured: false },
-  { id: 'hilltopads', enabled: false, configured: false }
+  {
+    id: 'monetag',
+    enabled: adsEnabled,
+    configured: Boolean(monetag.secret)
+  }
 ];
 
-// Monetag secure session creation.
+// -----------------------------------------------------------------------------
+// Monetag: create a server-bound ad session
+// -----------------------------------------------------------------------------
+
+const allowedAdPurposes = new Set([
+  'reward',
+  'start_mining',
+  'collect_mining'
+]);
+
 app.post('/api/monetag/session', requireMiniApp, async (req, res) => {
   try {
     if (!adsEnabled) {
-      return res.status(503).json({ error: 'Rewarded ads are currently disabled.' });
+      return res.status(503).json({
+        error: 'Monetag rewarded ads are currently disabled.'
+      });
+    }
+
+    const purpose = String(req.body?.purpose || 'reward');
+
+    if (!allowedAdPurposes.has(purpose)) {
+      return res.status(400).json({
+        error: 'Invalid ad purpose.'
+      });
     }
 
     const telegramId = Number(req.telegramUser.id);
     const ymid = `anv_${crypto.randomBytes(24).toString('hex')}`;
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    const expiresAt = new Date(
+      Date.now() + 15 * 60 * 1000
+    ).toISOString();
 
-    const { error } = await supabase.from('monetag_ad_sessions').insert({
-      ymid,
-      telegram_id: telegramId,
-      zone_id: monetag.zoneId,
-      expires_at: expiresAt
-    });
+    const { error } = await supabase
+      .from('monetag_ad_sessions')
+      .insert({
+        ymid,
+        telegram_id: telegramId,
+        zone_id: monetag.zoneId,
+        expires_at: expiresAt,
+        purpose
+      });
 
     if (error) throw error;
 
     res.set('Cache-Control', 'no-store');
-    return res.json({ ok: true, ymid, expires_at: expiresAt });
+
+    return res.json({
+      ok: true,
+      ymid,
+      purpose,
+      expires_at: expiresAt,
+      requestVar: purpose
+    });
   } catch (error) {
     console.error('Monetag session creation error:', error);
-    return res.status(500).json({ error: 'Could not prepare a secure ad session.' });
+
+    return res.status(500).json({
+      error: 'Could not prepare a secure Monetag ad session.'
+    });
   }
 });
 
-// Monetag postback: only verified valued impressions can credit ANV.
+// -----------------------------------------------------------------------------
+// Monetag: daily non-rewarded app-open opportunity
+// This does not create a reward event and does not use the rewarded-ad cap.
+// -----------------------------------------------------------------------------
+
+app.post('/api/monetag/daily-open', requireMiniApp, async (req, res) => {
+  try {
+    if (!adsEnabled) {
+      return res.json({
+        ok: true,
+        show: false,
+        reason: 'ads_disabled'
+      });
+    }
+
+    const telegramId = Number(req.telegramUser.id);
+    const { date } = utcDayWindow();
+
+    const { data, error } = await supabase
+      .from('monetag_daily_open_ads')
+      .upsert(
+        {
+          telegram_id: telegramId,
+          ad_date: date
+        },
+        {
+          onConflict: 'telegram_id,ad_date',
+          ignoreDuplicates: true
+        }
+      )
+      .select('telegram_id, ad_date')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.set('Cache-Control', 'no-store');
+
+    return res.json({
+      ok: true,
+      show: Boolean(data),
+      reason: data ? 'first_open_today' : 'already_shown_today',
+      ad_type: 'inApp'
+    });
+  } catch (error) {
+    console.error('Monetag daily-open error:', error);
+
+    return res.status(500).json({
+      ok: false,
+      show: false,
+      error: 'Could not check daily app-open ad.'
+    });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// Monetag postback: provider callback is the only reward verification source.
+// Telegram ID is always read from our saved ymid session, never trusted from URL.
+// -----------------------------------------------------------------------------
+
 app.get('/api/monetag/postback', async (req, res) => {
   try {
-    if (!monetag.secret) return res.status(503).send('Postback not configured');
+    if (!monetag.secret) {
+      return res.status(503).send('Postback not configured');
+    }
 
     const supplied = Buffer.from(String(req.query.secret || ''));
     const expected = Buffer.from(monetag.secret);
@@ -342,7 +500,7 @@ app.get('/api/monetag/postback', async (req, res) => {
 
     const { data: session, error: sessionError } = await supabase
       .from('monetag_ad_sessions')
-      .select('telegram_id')
+      .select('telegram_id, purpose')
       .eq('ymid', String(ymid))
       .eq('zone_id', monetag.zoneId)
       .gt('expires_at', new Date().toISOString())
@@ -358,15 +516,18 @@ app.get('/api/monetag/postback', async (req, res) => {
       return res.status(200).send('INVALID_SESSION');
     }
 
-    const { data, error } = await supabase.rpc('anv_credit_monetag_reward', {
-      p_ymid: String(ymid),
-      p_telegram_id: Number(session.telegram_id),
-      p_zone_id: String(zone_id),
-      p_sub_zone_id: String(sub_zone_id || ''),
-      p_event_type: String(event_type),
-      p_reward_event_type: String(reward_event_type),
-      p_estimated_price: price
-    });
+    const { data, error } = await supabase.rpc(
+      'anv_credit_monetag_reward',
+      {
+        p_ymid: String(ymid),
+        p_telegram_id: Number(session.telegram_id),
+        p_zone_id: String(zone_id),
+        p_sub_zone_id: String(sub_zone_id || ''),
+        p_event_type: String(event_type),
+        p_reward_event_type: String(reward_event_type),
+        p_estimated_price: price
+      }
+    );
 
     if (error) {
       console.error('Monetag reward RPC error:', error);
@@ -374,18 +535,23 @@ app.get('/api/monetag/postback', async (req, res) => {
     }
 
     if (!data || data.ok !== true) {
+      const reason = data?.reason || 'not_credited';
+
       return res.status(200).send(
-        data?.reason === 'duplicate'
+        reason === 'duplicate'
           ? 'DUPLICATE'
-          : data?.reason === 'daily_limit'
+          : reason === 'daily_limit'
             ? 'DAILY_LIMIT'
-            : 'REWARD_NOT_CREDITED'
+            : reason === 'expired'
+              ? 'EXPIRED'
+              : 'REWARD_NOT_CREDITED'
       );
     }
 
-    console.log('MONETAG REWARD CREDITED:', {
+    console.log('MONETAG POSTBACK VERIFIED:', {
       telegram_id: session.telegram_id,
-      reward: data.reward,
+      purpose: session.purpose,
+      reward: data.reward || 0,
       event_id: data.event_id
     });
 
@@ -396,14 +562,30 @@ app.get('/api/monetag/postback', async (req, res) => {
   }
 });
 
+// -----------------------------------------------------------------------------
+// Health
+// -----------------------------------------------------------------------------
+
 app.get('/health', (req, res) => {
-  res.json({ ok: true, service: 'ANV Verse API' });
+  res.json({
+    ok: true,
+    service: 'ANV Verse API',
+    monetag_enabled: adsEnabled
+  });
 });
 
-// Public app configuration.
+// -----------------------------------------------------------------------------
+// Public app configuration
+// -----------------------------------------------------------------------------
+
 app.get('/api/config', async (req, res) => {
   try {
-    const [miningReward, miningHours, dailyReward, referralReward] = await Promise.all([
+    const [
+      miningReward,
+      miningHours,
+      dailyReward,
+      referralReward
+    ] = await Promise.all([
       getAnvSetting('mining_reward', 0),
       getAnvSetting('mining_cycle_hours', 24),
       getAnvSetting('daily_checkin_reward', 0),
@@ -423,6 +605,7 @@ app.get('/api/config', async (req, res) => {
       withdrawal_method: 'USDT (BNB Smart Chain BEP20)',
       ads_enabled: adsEnabled,
       ad_networks: adProviders,
+      monetag_zone_id: monetag.zoneId,
       anv_enabled: true,
       anv_mining_reward: miningReward,
       anv_mining_cycle_hours: miningHours,
@@ -435,11 +618,18 @@ app.get('/api/config', async (req, res) => {
     });
   } catch (error) {
     console.error('Config error:', error);
-    return res.status(500).json({ error: 'Could not load configuration' });
+
+    return res.status(500).json({
+      error: 'Could not load configuration'
+    });
   }
 });
 
-// Rewarded-ad status, based on server postback records (UTC day).
+// -----------------------------------------------------------------------------
+// Rewarded-ad status: all purposes count toward the shared daily limit.
+// Only purpose=reward counts as Watch Ad ANV earnings.
+// -----------------------------------------------------------------------------
+
 app.get('/api/ads/status', requireMiniApp, async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
@@ -452,28 +642,35 @@ app.get('/api/ads/status', requireMiniApp, async (req, res) => {
         remaining: 0,
         next_reset_at: null,
         earned_24h: 0,
-        message: 'Ads are currently unavailable.'
+        message: 'Monetag ads are currently unavailable.'
       });
     }
 
-    const now = new Date();
-    const dayStart = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate()
-    ));
-    const dayEnd = new Date(dayStart.getTime() + 86400000);
+    const { start, end } = utcDayWindow();
+    const telegramId = Number(req.telegramUser.id);
 
-    const { count, error } = await supabase
-      .from('monetag_reward_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('telegram_id', req.telegramUser.id)
-      .gte('created_at', dayStart.toISOString())
-      .lt('created_at', dayEnd.toISOString());
+    const [allResult, rewardResult] = await Promise.all([
+      supabase
+        .from('monetag_reward_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('telegram_id', telegramId)
+        .gte('created_at', start)
+        .lt('created_at', end),
 
-    if (error) throw error;
+      supabase
+        .from('monetag_reward_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('telegram_id', telegramId)
+        .eq('purpose', 'reward')
+        .gte('created_at', start)
+        .lt('created_at', end)
+    ]);
 
-    const watched = Number(count || 0);
+    if (allResult.error) throw allResult.error;
+    if (rewardResult.error) throw rewardResult.error;
+
+    const watched = Number(allResult.count || 0);
+    const rewardAds = Number(rewardResult.count || 0);
     const remaining = Math.max(0, monetag.dailyLimit - watched);
 
     return res.json({
@@ -481,25 +678,32 @@ app.get('/api/ads/status', requireMiniApp, async (req, res) => {
       watched,
       daily_limit: monetag.dailyLimit,
       remaining,
-      next_reset_at: dayEnd.toISOString(),
-      earned_24h: watched * monetag.reward,
+      next_reset_at: end,
+      earned_24h: rewardAds * monetag.reward,
+      reward_ads_watched: rewardAds,
       message: remaining > 0
         ? 'Rewarded ads are available.'
         : 'Daily rewarded ad limit reached.'
     });
   } catch (error) {
     console.error('Ad status error:', error);
-    return res.status(500).json({ error: 'Could not load ad status' });
+
+    return res.status(500).json({
+      error: 'Could not load ad status'
+    });
   }
 });
 
 app.all('/api/ad-webhook', (req, res) => {
   res.status(503).json({
-    error: 'Ad rewards are disabled. No provider callback is active.'
+    error: 'Only the configured Monetag postback can verify ad rewards.'
   });
 });
 
-// Authentication.
+// -----------------------------------------------------------------------------
+// Authentication
+// -----------------------------------------------------------------------------
+
 app.post('/api/auth', requireMiniApp, async (req, res) => {
   try {
     await saveUser(req.telegramUser);
@@ -513,34 +717,52 @@ app.post('/api/auth', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Auth error:', error);
-    return res.status(500).json({ error: 'Could not save user' });
+
+    return res.status(500).json({
+      error: 'Could not save user'
+    });
   }
 });
 
-// Existing legacy USDT account.
+// -----------------------------------------------------------------------------
+// Existing legacy USDT account
+// -----------------------------------------------------------------------------
+
 app.get('/api/me', requireMiniApp, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('telegram_id, username, first_name, balance, total_earned, created_at')
+      .select(
+        'telegram_id, username, first_name, balance, total_earned, created_at'
+      )
       .eq('telegram_id', req.telegramUser.id)
       .maybeSingle();
 
     if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'User not found' });
+    if (!data) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     res.set('Cache-Control', 'no-store');
+
     return res.json({ user: data });
   } catch (error) {
     console.error('Account error:', error);
-    return res.status(500).json({ error: 'Could not load account' });
+
+    return res.status(500).json({
+      error: 'Could not load account'
+    });
   }
 });
 
-// ANV account and authoritative active mining session.
+// -----------------------------------------------------------------------------
+// ANV account and active mining session
+// -----------------------------------------------------------------------------
+
 app.get('/api/anv/me', requireMiniApp, async (req, res) => {
   try {
     const telegramId = Number(req.telegramUser.id);
+
     await ensureAnvAccount(telegramId);
 
     const [
@@ -551,12 +773,16 @@ app.get('/api/anv/me', requireMiniApp, async (req, res) => {
       dailyReward,
       referralReward
     ] = await Promise.all([
-      supabase.from('anv_accounts')
-        .select('telegram_id, balance, total_earned, mining_level, created_at')
+      supabase
+        .from('anv_accounts')
+        .select(
+          'telegram_id, balance, total_earned, mining_level, created_at'
+        )
         .eq('telegram_id', telegramId)
         .maybeSingle(),
 
-      supabase.from('anv_mining_sessions')
+      supabase
+        .from('anv_mining_sessions')
         .select('id, reward, started_at, ends_at, status')
         .eq('telegram_id', telegramId)
         .eq('status', 'active')
@@ -597,21 +823,70 @@ app.get('/api/anv/me', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV account error:', error);
-    return res.status(500).json({ error: 'Could not load ANV account' });
+
+    return res.status(500).json({
+      error: 'Could not load ANV account'
+    });
   }
 });
 
-// Mining start: use the database RPC; never create a client-only session.
+// -----------------------------------------------------------------------------
+// Mining start: a verified Monetag postback is required first.
+// -----------------------------------------------------------------------------
+
 app.post('/api/anv/mining/start', requireMiniApp, async (req, res) => {
   try {
+    if (!adsEnabled) {
+      return res.status(503).json({
+        ok: false,
+        error: 'Monetag rewarded ads are currently unavailable.'
+      });
+    }
+
     const telegramId = Number(req.telegramUser.id);
+
     await ensureAnvAccount(telegramId);
 
-    const { data, error } = await supabase.rpc('anv_start_mining', {
-      p_telegram_id: telegramId
-    });
+    const { data, error } = await supabase.rpc(
+      'anv_consume_monetag_mining_ad',
+      {
+        p_telegram_id: telegramId,
+        p_purpose: 'start_mining'
+      }
+    );
 
     if (error) throw error;
+
+    const actionData = data?.result &&
+      typeof data.result === 'object'
+      ? data.result
+      : data;
+
+    if (!data || data.ok !== true) {
+      const reason = data?.reason || actionData?.reason ||
+        'verified_ad_required';
+
+      const messages = {
+        verified_ad_required:
+          'Complete the Monetag rewarded ad before starting mining.',
+        ad_not_verified:
+          'Your Monetag ad has not been verified yet. Please wait and try again.',
+        daily_limit:
+          'You have reached today’s rewarded ad limit.',
+        already_active:
+          'You already have an active mining session.',
+        reward_not_configured:
+          'Mining reward has not been configured yet.',
+        invalid_cycle:
+          'Mining cycle configuration is invalid.'
+      };
+
+      return res.status(409).json({
+        ok: false,
+        reason,
+        error: messages[reason] || 'Could not start mining.'
+      });
+    }
 
     const { data: activeSession, error: sessionError } = await supabase
       .from('anv_mining_sessions')
@@ -624,29 +899,23 @@ app.post('/api/anv/mining/start', requireMiniApp, async (req, res) => {
 
     if (sessionError) throw sessionError;
 
-    if (activeSession) {
-      res.set('Cache-Control', 'no-store');
-      return res.json({
-        ok: true,
-        existing: data?.reason === 'already_active',
-        mining: activeSession
+    if (!activeSession) {
+      return res.status(500).json({
+        ok: false,
+        error: 'Mining action was accepted but the active session could not be loaded.'
       });
     }
 
-    const reason = data?.reason || 'could_not_start';
-    const messages = {
-      reward_not_configured: 'Mining reward has not been configured yet.',
-      already_active: 'Your active mining session could not be loaded.'
-    };
+    res.set('Cache-Control', 'no-store');
 
-    return res.status(409).json({
-      ok: false,
-      reason,
-      error: messages[reason] || 'Could not start mining.',
-      ends_at: data?.ends_at || null
+    return res.json({
+      ok: true,
+      ad_verified: true,
+      mining: activeSession
     });
   } catch (error) {
     console.error('ANV mining start error:', error);
+
     return res.status(500).json({
       ok: false,
       error: 'Could not start mining'
@@ -654,42 +923,76 @@ app.post('/api/anv/mining/start', requireMiniApp, async (req, res) => {
   }
 });
 
-// Mining collect.
+// -----------------------------------------------------------------------------
+// Mining collect: a separate verified Monetag postback is required.
+// -----------------------------------------------------------------------------
+
 app.post('/api/anv/mining/collect', requireMiniApp, async (req, res) => {
   try {
-    const { data, error } = await supabase.rpc('anv_collect_mining', {
-      p_telegram_id: Number(req.telegramUser.id)
-    });
+    if (!adsEnabled) {
+      return res.status(503).json({
+        ok: false,
+        error: 'Monetag rewarded ads are currently unavailable.'
+      });
+    }
+
+    const telegramId = Number(req.telegramUser.id);
+
+    const { data, error } = await supabase.rpc(
+      'anv_consume_monetag_mining_ad',
+      {
+        p_telegram_id: telegramId,
+        p_purpose: 'collect_mining'
+      }
+    );
 
     if (error) throw error;
 
-    if (!data || data.ok !== true) {
-      const reason = data?.reason || 'not_ready';
-      const messages = {
-        no_active_mining: 'There is no active mining session.',
-        no_active_session: 'There is no active mining session.',
-        not_finished: 'Mining is not finished yet.',
-        not_ready: 'Mining is not finished yet.'
-      };
+    const actionData = data?.result &&
+      typeof data.result === 'object'
+      ? data.result
+      : data;
 
-      res.set('Cache-Control', 'no-store');
+    if (!data || data.ok !== true) {
+      const reason = data?.reason || actionData?.reason ||
+        'verified_ad_required';
+
+      const messages = {
+        verified_ad_required:
+          'Complete the Monetag rewarded ad before collecting.',
+        ad_not_verified:
+          'Your Monetag ad has not been verified yet. Please wait and try again.',
+        daily_limit:
+          'You have reached today’s rewarded ad limit.',
+        no_active_mining:
+          'There is no active mining session.',
+        no_active_session:
+          'There is no active mining session.',
+        not_finished:
+          'Mining is not finished yet.',
+        not_ready:
+          'Mining is not finished yet.'
+      };
 
       return res.status(409).json({
         ok: false,
         reason,
         error: messages[reason] || 'Could not collect mining reward.',
-        ends_at: data?.ends_at || null
+        ends_at: data?.ends_at || actionData?.ends_at || null
       });
     }
 
     res.set('Cache-Control', 'no-store');
+
     return res.json({
       ok: true,
-      reward: data.reward,
-      account: data.account || null
+      ad_verified: true,
+      reward: data.reward ?? actionData?.reward ?? null,
+      account: data.account ?? actionData?.account ?? null
     });
   } catch (error) {
     console.error('ANV mining collect error:', error);
+
     return res.status(500).json({
       ok: false,
       error: 'Could not collect mining reward'
@@ -697,7 +1000,10 @@ app.post('/api/anv/mining/collect', requireMiniApp, async (req, res) => {
   }
 });
 
-// Daily check-in status and claim.
+// -----------------------------------------------------------------------------
+// Daily check-in status and claim
+// -----------------------------------------------------------------------------
+
 app.get('/api/anv/daily/status', requireMiniApp, async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -722,6 +1028,7 @@ app.get('/api/anv/daily/status', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV daily status error:', error);
+
     return res.status(500).json({
       error: 'Could not load daily check-in status'
     });
@@ -740,9 +1047,12 @@ app.post('/api/anv/daily/claim', requireMiniApp, async (req, res) => {
 
     if (!data || data.ok !== true) {
       const reason = data?.reason || 'could_not_claim';
+
       const messages = {
-        reward_not_configured: 'Daily check-in reward is not configured yet.',
-        already_claimed: 'You have already claimed today’s check-in reward.'
+        reward_not_configured:
+          'Daily check-in reward is not configured yet.',
+        already_claimed:
+          'You have already claimed today’s check-in reward.'
       };
 
       return res.status(409).json({
@@ -752,19 +1062,30 @@ app.post('/api/anv/daily/claim', requireMiniApp, async (req, res) => {
       });
     }
 
-    return res.json({ ok: true, reward: data.reward });
+    return res.json({
+      ok: true,
+      reward: data.reward
+    });
   } catch (error) {
     console.error('ANV daily claim error:', error);
-    return res.status(500).json({ error: 'Could not claim daily reward' });
+
+    return res.status(500).json({
+      error: 'Could not claim daily reward'
+    });
   }
 });
 
-// ANV transaction history.
+// -----------------------------------------------------------------------------
+// ANV transaction history
+// -----------------------------------------------------------------------------
+
 app.get('/api/anv/history', requireMiniApp, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('anv_transactions')
-      .select('id, amount, transaction_type, source, description, created_at')
+      .select(
+        'id, amount, transaction_type, source, description, created_at'
+      )
       .eq('telegram_id', req.telegramUser.id)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -772,26 +1093,41 @@ app.get('/api/anv/history', requireMiniApp, async (req, res) => {
     if (error) throw error;
 
     res.set('Cache-Control', 'no-store');
-    return res.json({ transactions: data || [] });
+
+    return res.json({
+      transactions: data || []
+    });
   } catch (error) {
     console.error('ANV history error:', error);
-    return res.status(500).json({ error: 'Could not load ANV history' });
+
+    return res.status(500).json({
+      error: 'Could not load ANV history'
+    });
   }
 });
 
-// ANV referrals.
+// -----------------------------------------------------------------------------
+// ANV referrals
+// -----------------------------------------------------------------------------
+
 app.get('/api/anv/referrals', requireMiniApp, async (req, res) => {
   try {
     const telegramId = Number(req.telegramUser.id);
 
-    const [usersResult, rewardsResult, referralReward] = await Promise.all([
-      supabase.from('users')
+    const [
+      usersResult,
+      rewardsResult,
+      referralReward
+    ] = await Promise.all([
+      supabase
+        .from('users')
         .select('telegram_id, username, first_name, created_at')
         .eq('referred_by', telegramId)
         .order('created_at', { ascending: false })
         .limit(500),
 
-      supabase.from('anv_transactions')
+      supabase
+        .from('anv_transactions')
         .select('amount')
         .eq('telegram_id', telegramId)
         .eq('source', 'referral')
@@ -829,13 +1165,17 @@ app.get('/api/anv/referrals', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV referral error:', error);
+
     return res.status(500).json({
       error: 'Could not load ANV referral statistics'
     });
   }
 });
 
-// Group join task status.
+// -----------------------------------------------------------------------------
+// Group join task status
+// -----------------------------------------------------------------------------
+
 app.get('/api/tasks/status', requireMiniApp, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -855,11 +1195,17 @@ app.get('/api/tasks/status', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Task status error:', error);
-    return res.status(500).json({ error: 'Could not load task status' });
+
+    return res.status(500).json({
+      error: 'Could not load task status'
+    });
   }
 });
 
-// Legacy USDT referrals and 10% commission history.
+// -----------------------------------------------------------------------------
+// Legacy USDT referrals and 10% commission history
+// -----------------------------------------------------------------------------
+
 app.get('/api/referrals', requireMiniApp, async (req, res) => {
   try {
     const telegramId = Number(req.telegramUser.id);
@@ -885,6 +1231,7 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
 
     for (const item of commissions || []) {
       const id = String(item.referred_telegram_id);
+
       commissionMap.set(
         id,
         (commissionMap.get(id) || 0) + Number(item.amount || 0)
@@ -917,11 +1264,17 @@ app.get('/api/referrals', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Referral error:', error);
-    return res.status(500).json({ error: 'Could not load referral statistics' });
+
+    return res.status(500).json({
+      error: 'Could not load referral statistics'
+    });
   }
 });
 
-// Verify Telegram group membership and claim the existing one-time USDT reward.
+// -----------------------------------------------------------------------------
+// Verify Telegram group membership and claim existing one-time USDT reward
+// -----------------------------------------------------------------------------
+
 app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
   try {
     const member = await bot.telegram.getChatMember(
@@ -930,7 +1283,9 @@ app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
     );
 
     if (!['member', 'administrator', 'creator'].includes(member.status)) {
-      return res.status(403).json({ error: 'Join the required channel first' });
+      return res.status(403).json({
+        error: 'Join the required channel first'
+      });
     }
 
     const { data, error } = await supabase.rpc('complete_join_task', {
@@ -956,23 +1311,32 @@ app.post('/api/tasks/join', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Join task error:', error);
+
     return res.status(500).json({
       error: 'Could not verify membership. Please try again.'
     });
   }
 });
 
-// Existing legacy USDT withdrawal — unchanged database RPC and balance.
+// -----------------------------------------------------------------------------
+// Existing legacy USDT withdrawal — unchanged database RPC and balance
+// -----------------------------------------------------------------------------
+
 app.post('/api/withdraw', requireMiniApp, async (req, res) => {
   try {
     const amount = Number(req.body.amount);
+
     const method = String(req.body.method || '')
       .trim()
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, '');
+
     const details = String(req.body.details || '').trim();
 
-    if (!Number.isSafeInteger(amount) || amount < cfg.minimumWithdrawal) {
+    if (
+      !Number.isSafeInteger(amount) ||
+      amount < cfg.minimumWithdrawal
+    ) {
       return res.status(400).json({
         error: 'Minimum withdrawal is $1 USDT.'
       });
@@ -1008,7 +1372,8 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
       };
 
       return res.status(400).json({
-        error: messages[data?.reason] || 'Withdrawal could not be created.'
+        error: messages[data?.reason] ||
+          'Withdrawal could not be created.'
       });
     }
 
@@ -1031,8 +1396,14 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
         cfg.adminId,
         adminMessage,
         Markup.inlineKeyboard([[
-          Markup.button.callback('✅ Approve', `wd_approve_${data.id}`),
-          Markup.button.callback('❌ Reject + Refund', `wd_reject_${data.id}`)
+          Markup.button.callback(
+            '✅ Approve',
+            `wd_approve_${data.id}`
+          ),
+          Markup.button.callback(
+            '❌ Reject + Refund',
+            `wd_reject_${data.id}`
+          )
         ]])
       );
 
@@ -1048,27 +1419,41 @@ app.post('/api/withdraw', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('Legacy USDT withdrawal error:', error);
-    return res.status(500).json({ error: 'Could not create withdrawal' });
+
+    return res.status(500).json({
+      error: 'Could not create withdrawal'
+    });
   }
 });
 
+// -----------------------------------------------------------------------------
 // ANV withdrawal request. SQL RPC reserves ANV before creating request.
+// -----------------------------------------------------------------------------
+
 app.post('/api/anv/withdraw', requireMiniApp, async (req, res) => {
   try {
     const telegramId = Number(req.telegramUser.id);
     const amount = Number(req.body.amount);
     const method = String(req.body.method || '').trim().toUpperCase();
-    const address = String(req.body.address || req.body.details || '').trim();
+    const address = String(
+      req.body.address || req.body.details || ''
+    ).trim();
 
-    if (!Number.isSafeInteger(amount) || amount < cfg.anvMinimumWithdrawal) {
+    if (
+      !Number.isSafeInteger(amount) ||
+      amount < cfg.anvMinimumWithdrawal
+    ) {
       return res.status(400).json({
-        error: `Minimum ANV withdrawal is ${cfg.anvMinimumWithdrawal.toLocaleString('en-US')} ANV.`
+        error:
+          `Minimum ANV withdrawal is ${cfg.anvMinimumWithdrawal.toLocaleString('en-US')} ANV.`
       });
     }
 
     let dbMethod;
 
-    if (['USDT_BEP20', 'USDT', 'USDT (BEP20)'].includes(method)) {
+    if (
+      ['USDT_BEP20', 'USDT', 'USDT (BEP20)'].includes(method)
+    ) {
       dbMethod = 'USDT_BEP20';
 
       if (!validBep20Address(address)) {
@@ -1076,7 +1461,9 @@ app.post('/api/anv/withdraw', requireMiniApp, async (req, res) => {
           error: 'Enter a valid BNB Smart Chain BEP20 wallet address.'
         });
       }
-    } else if (['GRAM_TON', 'GRAM', 'GRAM (TON)'].includes(method)) {
+    } else if (
+      ['GRAM_TON', 'GRAM', 'GRAM (TON)'].includes(method)
+    ) {
       dbMethod = 'GRAM_TON';
 
       if (!validTonAddress(address)) {
@@ -1090,26 +1477,31 @@ app.post('/api/anv/withdraw', requireMiniApp, async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase.rpc('create_anv_withdrawal', {
-      p_telegram_id: telegramId,
-      p_amount: amount,
-      p_method: dbMethod,
-      p_address: address
-    });
+    const { data, error } = await supabase.rpc(
+      'create_anv_withdrawal',
+      {
+        p_telegram_id: telegramId,
+        p_amount: amount,
+        p_method: dbMethod,
+        p_address: address
+      }
+    );
 
     if (error) throw error;
 
     if (!data || data.ok !== true) {
       const messages = {
         invalid_request: 'Invalid withdrawal request.',
-        pending_request: 'You already have a pending or approved ANV withdrawal.',
+        pending_request:
+          'You already have a pending or approved ANV withdrawal.',
         insufficient_balance: 'Insufficient ANV balance.'
       };
 
       return res.status(400).json({
         ok: false,
         reason: data?.reason || 'request_failed',
-        error: messages[data?.reason] || 'Could not create ANV withdrawal.'
+        error: messages[data?.reason] ||
+          'Could not create ANV withdrawal.'
       });
     }
 
@@ -1134,8 +1526,14 @@ app.post('/api/anv/withdraw', requireMiniApp, async (req, res) => {
         cfg.adminId,
         adminMessage,
         Markup.inlineKeyboard([[
-          Markup.button.callback('✅ Approve', `anvwd_approve_${data.id}`),
-          Markup.button.callback('❌ Reject + Refund', `anvwd_reject_${data.id}`)
+          Markup.button.callback(
+            '✅ Approve',
+            `anvwd_approve_${data.id}`
+          ),
+          Markup.button.callback(
+            '❌ Reject + Refund',
+            `anvwd_reject_${data.id}`
+          )
         ]])
       );
 
@@ -1156,18 +1554,24 @@ app.post('/api/anv/withdraw', requireMiniApp, async (req, res) => {
     });
   } catch (error) {
     console.error('ANV withdrawal request error:', error);
+
     return res.status(500).json({
       error: 'Could not create ANV withdrawal request.'
     });
   }
 });
 
-// User's ANV withdrawal history.
+// -----------------------------------------------------------------------------
+// User's ANV withdrawal history
+// -----------------------------------------------------------------------------
+
 app.get('/api/anv/withdrawals', requireMiniApp, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('anv_withdrawals')
-      .select('id, amount, payment_method, indicative_usd, payout_amount, payout_currency, status, created_at, processed_at, paid_at')
+      .select(
+        'id, amount, payment_method, indicative_usd, payout_amount, payout_currency, status, created_at, processed_at, paid_at'
+      )
       .eq('telegram_id', req.telegramUser.id)
       .order('created_at', { ascending: false })
       .limit(30);
@@ -1175,21 +1579,30 @@ app.get('/api/anv/withdrawals', requireMiniApp, async (req, res) => {
     if (error) throw error;
 
     res.set('Cache-Control', 'no-store');
-    return res.json({ withdrawals: data || [] });
+
+    return res.json({
+      withdrawals: data || []
+    });
   } catch (error) {
     console.error('ANV withdrawal history error:', error);
+
     return res.status(500).json({
       error: 'Could not load ANV withdrawal history.'
     });
   }
 });
 
-// Existing legacy USDT withdrawal history.
+// -----------------------------------------------------------------------------
+// Existing legacy USDT withdrawal history
+// -----------------------------------------------------------------------------
+
 app.get('/api/withdrawals', requireMiniApp, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('withdrawals')
-      .select('id, amount, payment_method, status, created_at, processed_at')
+      .select(
+        'id, amount, payment_method, status, created_at, processed_at'
+      )
       .eq('telegram_id', req.telegramUser.id)
       .order('created_at', { ascending: false })
       .limit(30);
@@ -1197,22 +1610,32 @@ app.get('/api/withdrawals', requireMiniApp, async (req, res) => {
     if (error) throw error;
 
     res.set('Cache-Control', 'no-store');
-    return res.json({ withdrawals: data || [] });
+
+    return res.json({
+      withdrawals: data || []
+    });
   } catch (error) {
     console.error('Withdrawal history error:', error);
+
     return res.status(500).json({
       error: 'Could not load withdrawals'
     });
   }
 });
 
-// Telegram bot start and user commands.
+// -----------------------------------------------------------------------------
+// Telegram bot start and user commands
+// -----------------------------------------------------------------------------
+
 bot.start(async (ctx) => {
   try {
     const payload = ctx.startPayload || '';
     const match = payload.match(/^ref_(\d+)$/);
 
-    await saveUser(ctx.from, match ? Number(match[1]) : null);
+    await saveUser(
+      ctx.from,
+      match ? Number(match[1]) : null
+    );
 
     await ctx.reply(
       `Welcome ${ctx.from.first_name || 'friend'}!\n\n` +
@@ -1223,7 +1646,10 @@ bot.start(async (ctx) => {
     );
   } catch (error) {
     console.error('Start error:', error);
-    await ctx.reply('Sorry, setup failed. Please try again later.');
+
+    await ctx.reply(
+      'Sorry, setup failed. Please try again later.'
+    );
   }
 });
 
@@ -1240,7 +1666,10 @@ bot.command('menu', (ctx) => {
   );
 });
 
-// Admin: list legacy USDT pending withdrawals.
+// -----------------------------------------------------------------------------
+// Admin: list legacy USDT pending withdrawals
+// -----------------------------------------------------------------------------
+
 bot.command('withdrawals', async (ctx) => {
   if (ctx.from.id !== cfg.adminId) {
     return ctx.reply('Not authorized.');
@@ -1248,7 +1677,9 @@ bot.command('withdrawals', async (ctx) => {
 
   const { data, error } = await supabase
     .from('withdrawals')
-    .select('id, telegram_id, amount, payment_method, payment_details, status')
+    .select(
+      'id, telegram_id, amount, payment_method, payment_details, status'
+    )
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(10);
@@ -1258,7 +1689,9 @@ bot.command('withdrawals', async (ctx) => {
     return ctx.reply('Could not load withdrawals.');
   }
 
-  if (!data?.length) return ctx.reply('No pending withdrawals.');
+  if (!data?.length) {
+    return ctx.reply('No pending withdrawals.');
+  }
 
   for (const item of data) {
     await ctx.reply(
@@ -1270,14 +1703,23 @@ bot.command('withdrawals', async (ctx) => {
       `💳 Wallet:\n${item.payment_details}\n` +
       `📌 Status: ${item.status.toUpperCase()}`,
       Markup.inlineKeyboard([[
-        Markup.button.callback('✅ Approve', `wd_approve_${item.id}`),
-        Markup.button.callback('❌ Reject + Refund', `wd_reject_${item.id}`)
+        Markup.button.callback(
+          '✅ Approve',
+          `wd_approve_${item.id}`
+        ),
+        Markup.button.callback(
+          '❌ Reject + Refund',
+          `wd_reject_${item.id}`
+        )
       ]])
     );
   }
 });
 
-// Admin: list pending ANV withdrawals.
+// -----------------------------------------------------------------------------
+// Admin: list pending ANV withdrawals
+// -----------------------------------------------------------------------------
+
 bot.command('anvwithdrawals', async (ctx) => {
   if (ctx.from.id !== cfg.adminId) {
     return ctx.reply('Not authorized.');
@@ -1285,7 +1727,9 @@ bot.command('anvwithdrawals', async (ctx) => {
 
   const { data, error } = await supabase
     .from('anv_withdrawals')
-    .select('id, telegram_id, amount, payment_method, payment_address, indicative_usd, status')
+    .select(
+      'id, telegram_id, amount, payment_method, payment_address, indicative_usd, status'
+    )
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(15);
@@ -1295,7 +1739,9 @@ bot.command('anvwithdrawals', async (ctx) => {
     return ctx.reply('Could not load ANV withdrawals.');
   }
 
-  if (!data?.length) return ctx.reply('No pending ANV withdrawals.');
+  if (!data?.length) {
+    return ctx.reply('No pending ANV withdrawals.');
+  }
 
   for (const item of data) {
     await ctx.reply(
@@ -1308,116 +1754,161 @@ bot.command('anvwithdrawals', async (ctx) => {
       `💳 Wallet:\n${item.payment_address}\n` +
       `📌 Status: ${item.status.toUpperCase()}`,
       Markup.inlineKeyboard([[
-        Markup.button.callback('✅ Approve', `anvwd_approve_${item.id}`),
-        Markup.button.callback('❌ Reject + Refund', `anvwd_reject_${item.id}`)
+        Markup.button.callback(
+          '✅ Approve',
+          `anvwd_approve_${item.id}`
+        ),
+        Markup.button.callback(
+          '❌ Reject + Refund',
+          `anvwd_reject_${item.id}`
+        )
       ]])
     );
   }
 });
 
-// Admin: legacy USDT approve/reject callback.
-bot.action(/^wd_(approve|reject)_([0-9a-f-]{36})$/i, async (ctx) => {
-  if (ctx.from.id !== cfg.adminId) {
-    return ctx.answerCbQuery('Not authorized', { show_alert: true });
-  }
+// -----------------------------------------------------------------------------
+// Admin: legacy USDT approve/reject callback
+// -----------------------------------------------------------------------------
 
-  try {
-    const approve = ctx.match[1] === 'approve';
-    const id = ctx.match[2];
-
-    const { data, error } = await supabase.rpc('process_withdrawal', {
-      p_id: id,
-      p_admin: cfg.adminId,
-      p_approve: approve,
-      p_authorized_admin: cfg.adminId
-    });
-
-    if (error) throw error;
-
-    if (!data || !data.ok) {
-      return ctx.answerCbQuery(data?.reason || 'Could not process');
-    }
-
-    await ctx.editMessageText(
-      `Withdrawal ${approve ? 'approved' : 'rejected and refunded'}.\nID: ${id}`
-    );
-
-    await ctx.answerCbQuery('Done');
-  } catch (error) {
-    console.error('Legacy admin action error:', error);
-    await ctx.answerCbQuery('Action failed', { show_alert: true });
-  }
-});
-
-// Admin: ANV approve/reject callback. Approval is not payout; rejection refunds ANV.
-bot.action(/^anvwd_(approve|reject)_([0-9a-f-]{36})$/i, async (ctx) => {
-  if (ctx.from.id !== cfg.adminId) {
-    return ctx.answerCbQuery('Not authorized', { show_alert: true });
-  }
-
-  try {
-    const action = ctx.match[1].toLowerCase();
-    const id = ctx.match[2];
-    const approve = action === 'approve';
-
-    const { data, error } = await supabase.rpc('process_anv_withdrawal', {
-      p_id: id,
-      p_admin: cfg.adminId,
-      p_action: approve ? 'approve' : 'reject',
-      p_authorized_admin: cfg.adminId,
-      p_payout_amount: null,
-      p_payout_currency: null
-    });
-
-    if (error) throw error;
-
-    if (!data || data.ok !== true) {
+bot.action(
+  /^wd_(approve|reject)_([0-9a-f-]{36})$/i,
+  async (ctx) => {
+    if (ctx.from.id !== cfg.adminId) {
       return ctx.answerCbQuery(
-        data?.reason || 'Could not process request.',
+        'Not authorized',
         { show_alert: true }
       );
     }
 
-    await ctx.editMessageText(
-      `ANV Withdrawal ${approve
-        ? 'APPROVED — payout is still pending.'
-        : 'REJECTED — ANV balance refunded.'}\n\n` +
-      `Request ID: ${id}\n` +
-      `User ID: ${data.telegram_id}\n` +
-      `Amount: ${Number(data.amount).toLocaleString('en-US')} ANV`
-    );
-
     try {
-      await bot.telegram.sendMessage(
-        data.telegram_id,
-        approve
-          ? `✅ Your ANV withdrawal request has been approved.\n\nRequest ID: ${id}\nPayout has not been marked as paid yet.`
-          : `❌ Your ANV withdrawal request was rejected.\n\n${Number(data.amount).toLocaleString('en-US')} ANV has been returned to your balance.\nRequest ID: ${id}`
+      const approve = ctx.match[1] === 'approve';
+      const id = ctx.match[2];
+
+      const { data, error } = await supabase.rpc(
+        'process_withdrawal',
+        {
+          p_id: id,
+          p_admin: cfg.adminId,
+          p_approve: approve,
+          p_authorized_admin: cfg.adminId
+        }
       );
-    } catch (notifyError) {
-      console.error('ANV user notification failed:', notifyError);
+
+      if (error) throw error;
+
+      if (!data || !data.ok) {
+        return ctx.answerCbQuery(
+          data?.reason || 'Could not process'
+        );
+      }
+
+      await ctx.editMessageText(
+        `Withdrawal ${approve
+          ? 'approved'
+          : 'rejected and refunded'}.\nID: ${id}`
+      );
+
+      await ctx.answerCbQuery('Done');
+    } catch (error) {
+      console.error('Legacy admin action error:', error);
+
+      await ctx.answerCbQuery(
+        'Action failed',
+        { show_alert: true }
+      );
+    }
+  }
+);
+
+// -----------------------------------------------------------------------------
+// Admin: ANV approve/reject callback
+// -----------------------------------------------------------------------------
+
+bot.action(
+  /^anvwd_(approve|reject)_([0-9a-f-]{36})$/i,
+  async (ctx) => {
+    if (ctx.from.id !== cfg.adminId) {
+      return ctx.answerCbQuery(
+        'Not authorized',
+        { show_alert: true }
+      );
     }
 
-    await ctx.answerCbQuery(
-      approve ? 'Approved.' : 'Rejected and refunded.'
-    );
-  } catch (error) {
-    console.error('ANV admin action error:', error);
-    await ctx.answerCbQuery('Action failed. Check server logs.', {
-      show_alert: true
-    });
-  }
-});
+    try {
+      const action = ctx.match[1].toLowerCase();
+      const id = ctx.match[2];
+      const approve = action === 'approve';
 
-// Admin: mark request paid only AFTER actual on-chain payout has been sent.
+      const { data, error } = await supabase.rpc(
+        'process_anv_withdrawal',
+        {
+          p_id: id,
+          p_admin: cfg.adminId,
+          p_action: approve ? 'approve' : 'reject',
+          p_authorized_admin: cfg.adminId,
+          p_payout_amount: null,
+          p_payout_currency: null
+        }
+      );
+
+      if (error) throw error;
+
+      if (!data || data.ok !== true) {
+        return ctx.answerCbQuery(
+          data?.reason || 'Could not process request.',
+          { show_alert: true }
+        );
+      }
+
+      await ctx.editMessageText(
+        `ANV Withdrawal ${approve
+          ? 'APPROVED — payout is still pending.'
+          : 'REJECTED — ANV balance refunded.'}\n\n` +
+        `Request ID: ${id}\n` +
+        `User ID: ${data.telegram_id}\n` +
+        `Amount: ${Number(data.amount).toLocaleString('en-US')} ANV`
+      );
+
+      try {
+        await bot.telegram.sendMessage(
+          data.telegram_id,
+          approve
+            ? `✅ Your ANV withdrawal request has been approved.\n\nRequest ID: ${id}\nPayout has not been marked as paid yet.`
+            : `❌ Your ANV withdrawal request was rejected.\n\n${Number(data.amount).toLocaleString('en-US')} ANV has been returned to your balance.\nRequest ID: ${id}`
+        );
+      } catch (notifyError) {
+        console.error('ANV user notification failed:', notifyError);
+      }
+
+      await ctx.answerCbQuery(
+        approve ? 'Approved.' : 'Rejected and refunded.'
+      );
+    } catch (error) {
+      console.error('ANV admin action error:', error);
+
+      await ctx.answerCbQuery(
+        'Action failed. Check server logs.',
+        { show_alert: true }
+      );
+    }
+  }
+);
+
+// -----------------------------------------------------------------------------
+// Admin: mark request paid only after actual on-chain payout has been sent.
 // Usage: /anvpaid UUID AMOUNT USDT  OR  /anvpaid UUID AMOUNT GRAM
+// -----------------------------------------------------------------------------
+
 bot.command('anvpaid', async (ctx) => {
   if (ctx.from.id !== cfg.adminId) {
     return ctx.reply('Not authorized.');
   }
 
   try {
-    const parts = String(ctx.message?.text || '').trim().split(/\s+/);
+    const parts = String(ctx.message?.text || '')
+      .trim()
+      .split(/\s+/);
 
     if (parts.length !== 4) {
       return ctx.reply(
@@ -1441,33 +1932,46 @@ bot.command('anvpaid', async (ctx) => {
 
     const { data: request, error: lookupError } = await supabase
       .from('anv_withdrawals')
-      .select('id, telegram_id, payment_method, status, amount')
+      .select(
+        'id, telegram_id, payment_method, status, amount'
+      )
       .eq('id', id)
       .maybeSingle();
 
     if (lookupError) throw lookupError;
-    if (!request) return ctx.reply('Withdrawal request not found.');
-
-    const expectedCurrency =
-      request.payment_method === 'USDT_BEP20' ? 'USDT' : 'GRAM';
-
-    if (currency !== expectedCurrency) {
-      return ctx.reply(`This request requires ${expectedCurrency} payout.`);
+    if (!request) {
+      return ctx.reply('Withdrawal request not found.');
     }
 
-    const { data, error } = await supabase.rpc('process_anv_withdrawal', {
-      p_id: id,
-      p_admin: cfg.adminId,
-      p_action: 'paid',
-      p_authorized_admin: cfg.adminId,
-      p_payout_amount: payoutAmount,
-      p_payout_currency: currency
-    });
+    const expectedCurrency =
+      request.payment_method === 'USDT_BEP20'
+        ? 'USDT'
+        : 'GRAM';
+
+    if (currency !== expectedCurrency) {
+      return ctx.reply(
+        `This request requires ${expectedCurrency} payout.`
+      );
+    }
+
+    const { data, error } = await supabase.rpc(
+      'process_anv_withdrawal',
+      {
+        p_id: id,
+        p_admin: cfg.adminId,
+        p_action: 'paid',
+        p_authorized_admin: cfg.adminId,
+        p_payout_amount: payoutAmount,
+        p_payout_currency: currency
+      }
+    );
 
     if (error) throw error;
 
     if (!data || data.ok !== true) {
-      return ctx.reply(`Could not mark paid: ${data?.reason || 'unknown error'}`);
+      return ctx.reply(
+        `Could not mark paid: ${data?.reason || 'unknown error'}`
+      );
     }
 
     await ctx.reply(
@@ -1489,11 +1993,20 @@ bot.command('anvpaid', async (ctx) => {
     }
   } catch (error) {
     console.error('ANV paid command error:', error);
-    return ctx.reply('Could not mark withdrawal as paid. Check server logs.');
+
+    return ctx.reply(
+      'Could not mark withdrawal as paid. Check server logs.'
+    );
   }
 });
 
-bot.catch((error) => console.error('Telegram bot error:', error));
+// -----------------------------------------------------------------------------
+// Start server and Telegram bot
+// -----------------------------------------------------------------------------
+
+bot.catch((error) => {
+  console.error('Telegram bot error:', error);
+});
 
 const server = app.listen(cfg.port, () => {
   console.log(`Server listening on port ${cfg.port}`);
@@ -1504,7 +2017,6 @@ const server = app.listen(cfg.port, () => {
     const me = await bot.telegram.getMe();
     botUsername = me.username || '';
 
-    // Persistent Telegram Mini App menu button.
     await bot.telegram.setChatMenuButton({
       menuButton: {
         type: 'web_app',
