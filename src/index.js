@@ -1,4 +1,3 @@
-
 import 'dotenv/config';
 import express from 'express';
 import crypto from 'node:crypto';
@@ -17,11 +16,11 @@ const cfg = {
   appUrl: process.env.APP_URL.replace(/\/$/, ''),
   targetChatId: process.env.TARGET_CHAT_ID || '@adseearn',
   targetChatUrl: process.env.TARGET_CHAT_URL || 'https://t.me/adseearn',
-  minimumWithdrawal: 1000000,
-  joinReward: 50000,
+  minimumWithdrawal: 1000000, // legacy USDT: $1 in micro-USDT
+  joinReward: 50000,          // legacy group reward: $0.05 in micro-USDT
   referralRate: 10,
   anvMinimumWithdrawal: 2000,
-  anvIndicativeRate: 0.0005,
+  anvIndicativeRate: 0.0005,  // indicative USD per ANV; not a guaranteed payout rate
   port: Number(process.env.PORT || 3000)
 };
 
@@ -163,7 +162,7 @@ app.post('/api/monetag/session', requireMiniApp, async (req, res) => {
   try {
     if (!adsEnabled) return res.status(503).json({ error: 'Rewarded ads are currently disabled.' });
     const purpose = String(req.body?.purpose || 'reward');
-    if (!['reward', 'popup_reward'].includes(purpose)) {
+    if (!['reward', 'popup_reward', 'mining'].includes(purpose)) {
       return res.status(400).json({ error: 'Invalid ad purpose.' });
     }
     const telegramId = Number(req.telegramUser.id);
@@ -200,7 +199,7 @@ app.post('/api/monetag/daily-open', requireMiniApp, async (req, res) => {
   }
 });
 
-// Monetag postback: only verified valued impressions can credit ANV.
+// Monetag postback: only verified valued events can credit ANV.
 app.get('/api/monetag/postback', async (req, res) => {
   try {
     if (!monetag.secret) return res.status(503).send('Postback not configured');
@@ -208,30 +207,54 @@ app.get('/api/monetag/postback', async (req, res) => {
     const expected = Buffer.from(monetag.secret);
     if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) return res.sendStatus(401);
     const { ymid, zone_id, sub_zone_id, event_type, reward_event_type, estimated_price } = req.query;
-    if (String(zone_id || '') !== monetag.zoneId || String(event_type || '') !== 'impression' ||
-        String(reward_event_type || '') !== 'valued' || !/^anv_[a-f0-9]{48}$/.test(String(ymid || ''))) {
+    if (String(zone_id || '') !== monetag.zoneId ||
+        String(reward_event_type || '') !== 'valued' ||
+        !/^anv_[a-f0-9]{48}$/.test(String(ymid || ''))) {
       return res.status(200).send('IGNORED');
     }
-    const price = Number(estimated_price || 0);
+    const price = Number(estimated_price ?? 0);
     if (!Number.isFinite(price) || price < 0) return res.status(200).send('INVALID_PRICE');
     const { data: session, error: sessionError } = await supabase.from('monetag_ad_sessions')
       .select('telegram_id, purpose').eq('ymid', String(ymid)).eq('zone_id', monetag.zoneId)
       .gt('expires_at', new Date().toISOString()).is('consumed_at', null).maybeSingle();
     if (sessionError) { console.error('Monetag session lookup error:', sessionError); return res.sendStatus(500); }
     if (!session?.telegram_id) return res.status(200).send('INVALID_SESSION');
+    // Rewarded Popup may report either its valued impression or its valued click.
+    // Rewarded Interstitial remains restricted to its normal impression event.
+    const eventType = String(event_type || '');
+    if (session.purpose === 'popup_reward' && !['impression', 'click'].includes(eventType)) {
+      return res.status(200).send('IGNORED_POPUP_EVENT');
+    }
+    if ((session.purpose === 'reward' || !session.purpose) && eventType !== 'impression') {
+      return res.status(200).send('IGNORED_REWARDED_EVENT');
+    }
+    // Mining ads verify eligibility only; they never credit an extra ANV reward.
+    if (session.purpose === 'mining') {
+      if (eventType !== 'impression') return res.status(200).send('IGNORED_MINING_EVENT');
+      const { data, error } = await supabase.rpc('anv_record_monetag_mining_ad', {
+        p_ymid: String(ymid),
+        p_telegram_id: Number(session.telegram_id),
+        p_zone_id: String(zone_id),
+        p_sub_zone_id: String(sub_zone_id || ''),
+        p_event_type: String(event_type),
+        p_reward_event_type: String(reward_event_type)
+      });
+      if (error) { console.error('Monetag mining verification RPC error:', error); return res.sendStatus(500); }
+      if (!data || data.ok !== true) return res.status(200).send(
+        data?.reason === 'duplicate' ? 'DUPLICATE' : 'MINING_AD_NOT_VERIFIED'
+      );
+      console.log('MONETAG MINING AD VERIFIED:', { telegram_id: session.telegram_id, mining_session_id: data.mining_session_id });
+      return res.status(200).send('OK');
+    }
     const rpcName = session.purpose === 'popup_reward'
       ? 'anv_credit_monetag_popup_reward'
       : session.purpose === 'reward' || !session.purpose
         ? 'anv_credit_monetag_reward'
         : null;
     if (!rpcName) return res.status(200).send('UNSUPPORTED_PURPOSE');
-    const rpcArgs = rpcName === 'anv_credit_monetag_popup_reward'
-      ? { p_ymid: String(ymid), p_telegram_id: Number(session.telegram_id), p_zone_id: String(zone_id),
-          p_sub_zone_id: String(sub_zone_id || ''), p_event_type: String(event_type),
-          p_reward_event_type: String(reward_event_type), p_estimated_price: price }
-      : { p_ymid: String(ymid), p_telegram_id: Number(session.telegram_id), p_zone_id: String(zone_id),
-          p_sub_zone_id: String(sub_zone_id || ''), p_event_type: String(event_type),
-          p_reward_event_type: String(reward_event_type), p_estimated_price: price };
+    const rpcArgs = { p_ymid: String(ymid), p_telegram_id: Number(session.telegram_id), p_zone_id: String(zone_id),
+      p_sub_zone_id: String(sub_zone_id || ''), p_event_type: String(event_type),
+      p_reward_event_type: String(reward_event_type), p_estimated_price: price };
     const { data, error } = await supabase.rpc(rpcName, rpcArgs);
     if (error) { console.error('Monetag reward RPC error:', error); return res.sendStatus(500); }
     if (!data || data.ok !== true) return res.status(200).send(
@@ -383,11 +406,11 @@ app.post('/api/anv/mining/start', requireMiniApp, async (req, res) => {
 // Mining collect.
 app.post('/api/anv/mining/collect', requireMiniApp, async (req, res) => {
   try {
-    const { data, error } = await supabase.rpc('anv_collect_mining', { p_telegram_id: Number(req.telegramUser.id) });
+    const { data, error } = await supabase.rpc('anv_collect_mining_with_ad', { p_telegram_id: Number(req.telegramUser.id) });
     if (error) throw error;
     if (!data || data.ok !== true) {
       const reason = data?.reason || 'not_ready';
-      const messages = { no_active_mining: 'There is no active mining session.', no_active_session: 'There is no active mining session.', not_finished: 'Mining is not finished yet.', not_ready: 'Mining is not finished yet.' };
+      const messages = { no_active_mining: 'There is no active mining session.', no_active_session: 'There is no active mining session.', not_finished: 'Mining is not finished yet.', not_ready: 'Mining is not finished yet.', mining_ad_required: 'Watch the Monetag mining ad before collecting.', ad_required: 'Watch the Monetag mining ad before collecting.', mining_ad_not_verified: 'The mining ad is not verified yet. Please watch it again.' };
       res.set('Cache-Control', 'no-store');
       return res.status(409).json({ ok: false, reason, error: messages[reason] || 'Could not collect mining reward.', ends_at: data?.ends_at || null });
     }
