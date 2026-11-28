@@ -1400,7 +1400,7 @@ button{cursor:pointer}
 
  </div>
 
- <div class="section-title">ANV VERSE USDT Wallet</div>
+ <div class="section-title">USDT Wallet</div>
 
  <div class="card">
   <small>YOUR USDT BALANCE</small>
@@ -1427,7 +1427,7 @@ button{cursor:pointer}
   <div class="banner-icon">🎁</div>
   <div>
    <div class="banner-title">Invite Friends</div>
-   <div class="banner-sub">Earn More ANV!</div>
+   <div class="banner-sub">Earn 10 ANV per successful invite!</div>
   </div>
  </div>
 
@@ -1479,6 +1479,11 @@ button{cursor:pointer}
 
   <div class="coinlabel">MINE · EARN · GROW</div>
 
+  <div class="notice" style="margin-top:14px;text-align:center">
+   <div style="color:#8eeaff;font-weight:900;font-size:11px">TELEGRAM USER ID</div>
+   <div id="profileTelegramId" style="font-size:16px;font-weight:1000;margin-top:7px;overflow-wrap:anywhere">Loading...</div>
+  </div>
+
   <div class="profile-badges">
    <span>✦ ANV MEMBER</span>
    <span>⛏ MINER</span>
@@ -1494,10 +1499,23 @@ button{cursor:pointer}
 
  </div>
 
- <div class="section-title">About ANV Verse</div>
+ <div class="section-title">About Us</div>
 
  <div class="notice profile-about">
+  <b>🚀 ANV VERSE</b><br>
   Welcome to ANV VERSE. Mine, complete tasks and grow your ANV rewards.
+  Welcome to our community!
+ </div>
+
+ <div class="section-title">Need Help?</div>
+
+ <div class="card center">
+  <div class="ico">💬</div>
+  <b>CONTACT SUPPORT</b>
+  <p class="muted">Need help with ANV VERSE? Contact our support team.</p>
+  <button class="action" style="width:100%;margin-top:10px" onclick="contactSupport()">
+   CONTACT SUPPORT
+  </button>
  </div>
 
 </section>
@@ -1739,6 +1757,11 @@ function renderAccount(){
    tg?.initDataUnsafe?.user?.first_name||
    legacyUser?.first_name||
    'Player';
+ }
+
+ const profileIdEl=document.getElementById('profileTelegramId');
+ if(profileIdEl){
+  profileIdEl.textContent=getTelegramUserId()||'Unavailable';
  }
 
  const refCountEl=document.getElementById('refCount');
@@ -2160,6 +2183,23 @@ function shareReferral(){
  else window.open(u,'_blank');
 }
 
+/* CONTACT SUPPORT */
+function contactSupport(){
+ const userId=getTelegramUserId();
+
+ const message=userId
+  ?`Hello ANV VERSE Support, I need help.\nMy Telegram User ID: ${userId}`
+  :'Hello ANV VERSE Support, I need help.';
+
+ const url='https://t.me/Vertusq?text='+encodeURIComponent(message);
+
+ if(tg?.openTelegramLink){
+  tg.openTelegramLink(url);
+ }else{
+  window.open(url,'_blank');
+ }
+}
+
 /* REWARDED ADS */
 async function loadAdStatus(){
  const button=document.getElementById('watchAdButton');
@@ -2464,4 +2504,4 @@ function hideStartupLoader(){
 </script>
 
 </body>
- </html>
+</html>
