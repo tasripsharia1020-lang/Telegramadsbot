@@ -161,7 +161,11 @@ const adProviders = [
 app.post('/api/monetag/session', requireMiniApp, async (req, res) => {
   try {
     if (!adsEnabled) return res.status(503).json({ error: 'Rewarded ads are currently disabled.' });
-    const purpose = String(req.body?.purpose || 'reward');
+    const requestedPurpose = String(req.body?.purpose || 'reward');
+    // Backward compatibility for older Mini App builds that send the button action
+    // as the purpose. Both mining actions must use one server-side mining session.
+    const purpose = ['start_mining', 'collect_mining'].includes(requestedPurpose)
+      ? 'mining' : requestedPurpose;
     if (!['reward', 'popup_reward', 'mining'].includes(purpose)) {
       return res.status(400).json({ error: 'Invalid ad purpose.' });
     }
@@ -315,7 +319,7 @@ app.get('/api/ads/status', requireMiniApp, async (req, res) => {
       daily_limit: monetag.dailyLimit, remaining, next_reset_at: dayEnd.toISOString(),
       earned_24h: watched * monetag.reward, popup_task_enabled: adsEnabled,
       popup_task_claimed: Boolean(popupEvent), popup_task_remaining: popupEvent ? 0 : 1,
-      popup_task_reward: 5,
+      popup_task_reward: 5, mining_ads_enabled: adsEnabled,
       message: remaining > 0 ? 'Rewarded ads are available.' : 'Daily rewarded ad limit reached.' });
   } catch (error) {
     console.error('Ad status error:', error);
